@@ -13,6 +13,7 @@ import "./fixes.css";
 import "./inventory.css";
 import ResearchPanel, { TECHNOLOGIES } from "./ResearchPanel.jsx";
 import "./research.css";
+import { createExpeditionSites, signalDirection } from "./expeditions.js";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -2604,6 +2605,9 @@ function ExplorationMap({ body, onOrbit }) {
     cy = Math.floor(H / 2);
   const palette = SURFACE_PALETTES[body] || SURFACE_PALETTES.지구;
   const world = useMemo(() => makeExplorationWorld(body, W, H), [body, W, H]);
+  const expeditionSites = useMemo(() => createExpeditionSites(world, {x:cx,y:cy}), [world,cx,cy]);
+  const [discoveries, setDiscoveries] = useState([]);
+  const [blackboxDecoded, setBlackboxDecoded] = useState(false);
   const [pos, setPos] = useState({ x: cx, y: cy });
   const [revealed, setRevealed] = useState(() => new Set());
   const [visited, setVisited] = useState(() => new Set([`${cx},${cy}`]));
@@ -2651,6 +2655,24 @@ function ExplorationMap({ body, onOrbit }) {
   );
   const loadRatio = inventoryLoad / INVENTORY_CAPACITY;
   const currentBuilding = buildings.get(`${pos.x},${pos.y}`);
+  const activeSite = expeditionSites.find(site => !discoveries.includes(site.id));
+  const libraryEntry = [...buildings.entries()].find(([,b]) => b.type === "도서관");
+  const libraryPosition = libraryEntry ? libraryEntry[0].split(",").map(Number) : [cx,cy];
+  const expeditionTarget = discoveries.includes("wreck") && !blackboxDecoded
+    ? {x:libraryPosition[0],y:libraryPosition[1],name:libraryEntry ? "도서관 · 블랙박스 해독" : "착륙 거점 · 도서관 건설"}
+    : activeSite;
+  const targetDistance = expeditionTarget ? Math.abs(pos.x-expeditionTarget.x)+Math.abs(pos.y-expeditionTarget.y) : 0;
+  const expeditionPins = new Map(pins);
+  expeditionPins.set(`${cx},${cy}`,"착륙 거점");
+  if(expeditionTarget) expeditionPins.set(`${expeditionTarget.x},${expeditionTarget.y}`,expeditionTarget.name);
+  const investigateSite = () => {
+    if(dead || !activeSite || (discoveries.includes("wreck") && !blackboxDecoded)) return;
+    if(Math.abs(pos.x-activeSite.x)+Math.abs(pos.y-activeSite.y)>1) return;
+    setDiscoveries(v=>[...v,activeSite.id]);
+    setBuildStock(v=>({...v,data:v.data+activeSite.data,structure:v.structure+activeSite.structure,circuit:v.circuit+activeSite.circuit}));
+    if(activeSite.id==='greenhouse') setFood(v=>v+4);
+    setMessage(`${activeSite.desc} 기록 매체 +${activeSite.data} · 구조재 +${activeSite.structure} · 회로 +${activeSite.circuit}`);
+  };
   const currentStorage = currentBuilding?.type === "보관소" ? currentBuilding : null;
   const storageLoad = currentStorage
     ? Object.entries(currentStorage.storage || {}).reduce(
@@ -2920,6 +2942,10 @@ function ExplorationMap({ body, onOrbit }) {
   const restoreTechnology = (id) => {
     const index = TECHNOLOGIES.findIndex(t => t.id === id), tech = TECHNOLOGIES[index];
     if (dead || !tech || currentBuilding?.type !== "도서관" || technologies.includes(id) || buildStock.data < tech.cost || (index > 0 && !technologies.includes(TECHNOLOGIES[index - 1].id))) return;
+    if(id === "engineering" && !discoveries.includes("wreck")) {
+      setResearchNotice("먼저 추락한 조사선에서 블랙박스를 회수하세요. 탐사 화면의 신호를 따라가면 됩니다."); return;
+    }
+    if(id === "engineering") setBlackboxDecoded(true);
     setBuildStock(v => ({...v, data:v.data-tech.cost}));
     setTechnologies(v => [...v,id]);
     setResearchNotice(`${tech.name} 복원 완료. 기억: ${tech.memory}`);
@@ -3149,6 +3175,12 @@ function ExplorationMap({ body, onOrbit }) {
             : "문명 신호 없음 · 첫 정착지를 건설하세요."}
         </em>
       </aside>
+      <section className="expedition-objective" aria-label="현재 원정 목표">
+        <small>FIELD EXPEDITION · {discoveries.length} / 3</small>
+        <h3>{expeditionTarget?.name || "주변 원정 완료"}</h3>
+        <p>{expeditionTarget ? `${signalDirection(pos,expeditionTarget)} · 직선 격자 거리 ${targetDistance}칸` : "회수한 기록으로 항해 기술을 복원하고 바다 너머로 떠나세요."}</p>
+        {discoveries.includes("wreck") && !blackboxDecoded ? <p>도서관을 짓거나 기존 도서관으로 돌아가 ‘기초 공학’을 해독하세요.</p> : activeSite ? <><p>{activeSite.id==='wreck'?'약한 구조 신호가 감지됩니다. 블랙박스를 찾아 돌아오세요.':activeSite.id==='observatory'?'블랙박스가 가리킨 관측소를 찾아 기록을 복구하세요.':'관측소가 포착한 마지막 생존 신호를 조사하세요.'}</p><button disabled={targetDistance>1||dead} onClick={investigateSite}>{targetDistance<=1?'현장 조사 · 기록 회수':'신호를 따라 이동하세요'}</button></> : null}
+      </section>
       <ExplorationCanvas
         key={mapRevision}
         world={world}
@@ -3158,7 +3190,7 @@ function ExplorationMap({ body, onOrbit }) {
         onMove={move}
         palette={palette}
         buildings={buildings}
-        pins={pins}
+        pins={expeditionPins}
         showTrail={showTrail}
       />
       <div className="map-legend">
@@ -3300,7 +3332,7 @@ function ExplorationMap({ body, onOrbit }) {
           </footer>
         </div>
       )}
-      {researchOpen && <ResearchPanel stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
+      {researchOpen && <ResearchPanel hasBlackbox={discoveries.includes("wreck")} stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
       {buildOpen && (
         <ConstructionPanel
           position={pos}
@@ -3321,7 +3353,7 @@ function ExplorationMap({ body, onOrbit }) {
           pos={pos}
           visited={visited}
           buildings={buildings}
-          pins={pins}
+          pins={expeditionPins}
           palette={palette}
           showTrail={showTrail}
           onClose={() => setOverviewOpen(false)}
