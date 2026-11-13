@@ -293,3 +293,9 @@
   .periodic-grid>button.core-element:nth-of-type(19){grid-column:1!important;grid-row:4!important}
   .periodic-grid>button.core-element:nth-of-type(20){grid-column:2!important;grid-row:4!important}
 }
+@media(max-width:720px){
+  .birth-head{flex:0 0 auto;height:auto;min-height:126px;box-sizing:border-box}
+  .birth-head-actions{position:static;flex:0 0 auto}
+  .birth-layout{flex:0 0 auto}
+  .birth-footer{flex:0 0 auto}
+}
