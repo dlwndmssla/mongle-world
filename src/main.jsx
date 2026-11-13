@@ -14,6 +14,7 @@ import "./inventory.css";
 import ResearchPanel, { TECHNOLOGIES } from "./ResearchPanel.jsx";
 import "./research.css";
 import { createExpeditionSites, signalDirection } from "./expeditions.js";
+import { createTerrainSampler } from "./terrain.js";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -1968,53 +1969,14 @@ const BODY_RADIUS_RATIO = {
 };
 
 function makeExplorationWorld(body, w, h) {
-  const r = seeded(`${body}-world-v4`),
-    seed = [...body].reduce((a, c) => a + c.charCodeAt(0), 19);
-  const centers = Array.from({ length: 12 }, (_, i) => ({
-    x: i === 0 ? Math.floor(w / 2) : r() * w,
-    y: i === 0 ? Math.floor(h / 2) : r() * h,
-    rx: w * (0.035 + r() * 0.055),
-    ry: h * (0.045 + r() * 0.07),
-    power: 0.72 + r() * 0.65,
-  }));
+  const sample = createTerrainSampler(body,w,h);
   const overrides = new Map(),
     rows = new Map();
-  const noise = (x, y, s = 0) => {
-    const n =
-      Math.sin(x * 12.9898 + y * 78.233 + seed * 3.117 + s * 19.19) *
-      43758.5453;
-    return n - Math.floor(n);
-  };
   const getTile = (x, y) => {
     if (x < 0 || y < 0 || x >= w || y >= h) return undefined;
     const key = `${x},${y}`;
     if (overrides.has(key)) return overrides.get(key);
-    let land = 0;
-    centers.forEach((c) => {
-      const dx = (x - c.x) / (c.rx * c.power),
-        dy = (y - c.y) / (c.ry * c.power);
-      land += Math.exp(-(dx * dx + dy * dy) * 1.25);
-    });
-    land +=
-      (Math.sin(x * 0.031 + y * 0.047 + body.length) +
-        Math.sin(x * 0.011 - y * 0.029) +
-        2) *
-        0.075 +
-      (noise(x, y) - 0.5) * 0.18;
-    if (land <= 0.61)
-      return { type: "sea", depth: land < 0.2 ? "deep" : "coast" };
-    const roll = noise(x, y, 2);
-    return {
-      type:
-        roll > 0.965
-          ? "resource"
-          : roll > 0.87
-            ? "mountain"
-            : roll > 0.7
-              ? "forest"
-              : "land",
-      depth: "land",
-    };
+    return sample(x,y);
   };
   return new Proxy(
     { width: w, height: h, overrides },
@@ -2086,7 +2048,7 @@ function ExplorationCanvas({
           const seen = revealed.has(`${x},${y}`),
             t = world[y][x];
           if (!seen) continue;
-          let color = palette[0];
+          let color = terrainColor(t,palette);
           if (t.type === "sea")
             color =
               t.depth === "deep"
@@ -2095,9 +2057,13 @@ function ExplorationCanvas({
           if (t.type === "forest") color = mixHex(palette[0], "#174c45", 0.45);
           if (t.type === "mountain")
             color = mixHex(palette[0], "#d9d3c0", 0.28);
-          if (t.type === "resource") color = "#c9973f";
+          if (t.type === "resource") color = terrainColor(t,palette);
           ctx.fillStyle = color;
           ctx.fillRect(px - 0.5, py - 0.5, tile + 1.2, tile + 1.2);
+          if(t.type === "mountain") {
+            ctx.fillStyle="rgba(25,24,30,.22)";ctx.beginPath();ctx.moveTo(px+tile*.15,py+tile*.85);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.9,py+tile*.85);ctx.fill();
+            ctx.strokeStyle="rgba(244,229,203,.32)";ctx.beginPath();ctx.moveTo(px+tile*.2,py+tile*.75);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.6,py+tile*.5);ctx.stroke();
+          }
           if (t.type === "sea") {
             ctx.strokeStyle = "rgba(190,238,246,.09)";
             ctx.beginPath();
@@ -2242,6 +2208,13 @@ function mixHex(a, b, t) {
         .padStart(2, "0"),
     )
     .join("")}`;
+}
+function terrainColor(t,palette){
+  if(t.type==='sea')return mixHex(palette[1],t.depth==='coast'?'#6a9b9f':'#071725',t.depth==='coast'?.35:.25);
+  if(t.beach)return mixHex(palette[0],'#d7c59c',.55);
+  if(t.type==='forest')return mixHex(palette[0],'#244b43',.55);
+  const base=t.type==='mountain'?mixHex(palette[0],'#ddd1bd',.35):palette[0];
+  return mixHex(base,(t.elevation||.5)>.64?'#e3c6a0':'#242d38',.08+Math.abs((t.shade||.5)-.5)*.18);
 }
 
 const BUILDING_RECIPES = {
@@ -2443,24 +2416,25 @@ function WorldOverview({
       sy = rect.height / height,
       px = Math.max(1, sx * 1.25),
       py = Math.max(1, sy * 1.25);
+    // A faint orbital chart gives the landmass context; discoveries remain hidden.
+    const chartCols=240,chartRows=Math.max(80,Math.round(chartCols*rect.height/rect.width));
+    ctx.globalAlpha=.3;
+    for(let gy=0;gy<chartRows;gy++)for(let gx=0;gx<chartCols;gx++){
+      const t=world[Math.min(height-1,Math.floor(gy/chartRows*height))]?.[Math.min(width-1,Math.floor(gx/chartCols*width))];
+      if(!t)continue;
+      ctx.fillStyle=terrainColor(t.type==='resource'?{...t,type:'land'}:t,palette);
+      ctx.fillRect(gx/chartCols*rect.width,gy/chartRows*rect.height,rect.width/chartCols+1,rect.height/chartRows+1);
+    }
+    ctx.globalAlpha=1;
     revealed.forEach((key) => {
       const [x, y] = key.split(",").map(Number),
         tile = world[y]?.[x];
       if (!tile) return;
-      ctx.fillStyle =
-        tile.type === "sea"
-          ? palette[1]
-          : tile.type === "forest"
-            ? mixHex(palette[0], "#174c45", 0.45)
-            : tile.type === "mountain"
-              ? mixHex(palette[0], "#d9d3c0", 0.28)
-              : tile.type === "resource"
-                ? "#d0a247"
-                : palette[0];
+      ctx.fillStyle = terrainColor(tile,palette);
       ctx.fillRect(x * sx, y * sy, px, py);
     });
     if (showTrail) {
-      ctx.fillStyle = "rgba(223,250,255,.45)";
+      ctx.fillStyle = "rgba(223,250,255,.13)";
       visited.forEach((key) => {
         const [x, y] = key.split(",").map(Number);
         ctx.fillRect(x * sx, y * sy, Math.max(1, sx), Math.max(1, sy));
@@ -2507,8 +2481,7 @@ function WorldOverview({
           <small>PLANETARY CARTOGRAPHY</small>
           <h2>세계 지도</h2>
           <p>
-            {width.toLocaleString()} × {height.toLocaleString()} 셀 · 밝혀진
-            지역만 표시
+            {width.toLocaleString()} × {height.toLocaleString()} 셀 · 옅은 지형은 궤도 추정 · 밝은 지역은 현장 조사
           </p>
         </div>
         <button onClick={onClose}>×</button>
