@@ -7,6 +7,7 @@ import { feature } from "topojson-client";
 import countries110m from "world-atlas/countries-110m.json";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
+import { Analytics } from "@vercel/analytics/react";
 import "./styles.css";
 import "./fixes.css";
 
@@ -3564,4 +3565,9 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  <>
+    <App />
+    <Analytics />
+  </>,
+);
