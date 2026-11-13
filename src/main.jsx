@@ -16,6 +16,14 @@ import "./research.css";
 import { createExpeditionSites, signalDirection } from "./expeditions.js";
 import { createTerrainSampler } from "./terrain.js";
 import MiningPanel from "./MiningPanel.jsx";
+import PlayerSprite from "./PlayerSprite.jsx";
+import { adjacentTiles, canTravel, boardingDestination } from "./boat.js";
+import { prerequisitesMet, memoryInsight, rocketPerformance, flightReadiness } from "./engineering.js";
+import { initialIndustry, advanceIndustry } from "./automation.js";
+import IndustryPanel from "./IndustryPanel.jsx";
+import { readExpedition,writeExpedition,saveKey } from "./saveGame.js";
+import { movementDelay, cameraView } from "./movement.js";
+import { createDepositSampler } from "./deposits.js";
 import { MINE_ELEMENTS, SHIP_RECIPES, miningChance, mineResult } from "./mining.js";
 
 const RADIUS = 2.28;
@@ -1972,13 +1980,15 @@ const BODY_RADIUS_RATIO = {
 
 function makeExplorationWorld(body, w, h) {
   const sample = createTerrainSampler(body,w,h);
+  const depositAt=createDepositSampler(body,BODY_START_DATA[body]);
   const overrides = new Map(),
     rows = new Map();
   const getTile = (x, y) => {
     if (x < 0 || y < 0 || x >= w || y >= h) return undefined;
     const key = `${x},${y}`;
     if (overrides.has(key)) return overrides.get(key);
-    return sample(x,y);
+    const tile=sample(x,y);
+    return tile.type==='sea'?tile:{...tile,deposit:depositAt(x,y)};
   };
   return new Proxy(
     { width: w, height: h, overrides },
@@ -2012,6 +2022,8 @@ function makeExplorationWorld(body, w, h) {
 function ExplorationCanvas({
   world,
   pos,
+  health,
+  aboard,
   revealed,
   visited,
   onMove,
@@ -2021,7 +2033,7 @@ function ExplorationCanvas({
   showTrail,
 }) {
   const ref = useRef(),
-    buildingRef = useRef();
+    buildingRef = useRef(), playerRef = useRef(), previousPosition=useRef(pos),camera=useRef(null);
   useEffect(() => {
     const canvas = ref.current,
       ctx = canvas.getContext("2d");
@@ -2031,13 +2043,10 @@ function ExplorationCanvas({
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const width = rect.width,
-        height = rect.height,
-        tile = Math.max(9, Math.min(15, width / 58)),
-        cols = Math.ceil(width / tile) + 4,
-        rows = Math.ceil(height / tile) + 4,
-        startX = Math.floor(pos.x - cols / 2),
-        startY = Math.floor(pos.y - rows * (width <= 760 ? 0.36 : 0.5));
+      const width=rect.width,height=rect.height,oldCamera=camera.current;
+      const view=cameraView(pos,width,height,oldCamera);
+      camera.current=view;
+      const {tile,cols,rows,startX,startY}=view;
       ctx.fillStyle = "#040b15";
       ctx.fillRect(0, 0, width, height);
       for (let sy = 0; sy < rows; sy++)
@@ -2062,6 +2071,11 @@ function ExplorationCanvas({
           if (t.type === "resource") color = terrainColor(t,palette);
           ctx.fillStyle = color;
           ctx.fillRect(px - 0.5, py - 0.5, tile + 1.2, tile + 1.2);
+          if(t.deposit){
+            ctx.fillStyle={Al:'#b3c9d7',Mg:'#b2bd9d',Si:'#a6d9d6',C:'#6c7689',H:'#a7d5e4',O:'#b8d7d0'}[t.deposit]||'#bbb';
+            ctx.globalAlpha=.32;ctx.fillRect(px,py,tile,tile);ctx.globalAlpha=1;
+            if((x+y)%3===0){ctx.font=`bold ${Math.max(8,tile*.7)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile/2,py+tile*.78);ctx.textAlign='start';}
+          }
           if(t.type === "mountain") {
             ctx.fillStyle="rgba(25,24,30,.22)";ctx.beginPath();ctx.moveTo(px+tile*.15,py+tile*.85);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.9,py+tile*.85);ctx.fill();
             ctx.strokeStyle="rgba(244,229,203,.32)";ctx.beginPath();ctx.moveTo(px+tile*.2,py+tile*.75);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.6,py+tile*.5);ctx.stroke();
@@ -2094,6 +2108,7 @@ function ExplorationCanvas({
         }
       const playerX = (pos.x - startX - 1) * tile + tile / 2,
         playerY = (pos.y - startY - 1) * tile + tile / 2;
+      if(playerRef.current){playerRef.current.style.transitionDuration=`${movementDelay(world[pos.y]?.[pos.x],aboard)*.8}ms`;playerRef.current.style.left=`${playerX}px`;playerRef.current.style.top=`${playerY}px`;}
       const glow = ctx.createRadialGradient(
         playerX,
         playerY,
@@ -2102,21 +2117,19 @@ function ExplorationCanvas({
         playerY,
         tile * 2.4,
       );
-      glow.addColorStop(0, "rgba(85,238,255,.5)");
+      glow.addColorStop(0, "rgba(151,223,185,.12)");
       glow.addColorStop(1, "rgba(85,238,255,0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(playerX, playerY, tile * 2.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#eaffff";
-      ctx.beginPath();
-      ctx.arc(playerX, playerY, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#41e6f3";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(playerX, playerY, 8, 0, Math.PI * 2);
-      ctx.stroke();
+      const dx=pos.x-previousPosition.current.x,dy=pos.y-previousPosition.current.y;
+      previousPosition.current=pos;
+      if((dx||dy)&&oldCamera&&Math.abs(dx)+Math.abs(dy)===1&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        const duration=movementDelay(world[pos.y]?.[pos.x],aboard)*.8;
+        const cx=(startX-oldCamera.startX)*tile,cy=(startY-oldCamera.startY)*tile;
+        if(cx||cy)for(const layer of [canvas,buildingRef.current])layer?.animate([{transform:`translate(${cx}px,${cy}px)`},{transform:'translate(0,0)'}],{duration,easing:'linear'});
+      }
     };
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
@@ -2128,11 +2141,7 @@ function ExplorationCanvas({
       rect = canvas.getBoundingClientRect(),
       dpr = Math.min(devicePixelRatio || 1, 2),
       ctx = canvas.getContext("2d"),
-      tile = Math.max(9, Math.min(15, rect.width / 58)),
-      cols = Math.ceil(rect.width / tile) + 4,
-      rows = Math.ceil(rect.height / tile) + 4,
-      startX = Math.floor(pos.x - cols / 2),
-      startY = Math.floor(pos.y - rows * (rect.width <= 760 ? 0.36 : 0.5));
+      {tile,cols,rows,startX,startY}=cameraView(pos,rect.width,rect.height,camera.current);
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2181,8 +2190,8 @@ function ExplorationCanvas({
   }, [buildings, pins, pos]);
   const click = (e) => {
     const r = e.currentTarget.getBoundingClientRect(),
-      dx = e.clientX - r.left - r.width / 2,
-      dy = e.clientY - r.top - r.height / 2;
+      dx = e.clientX - r.left - (camera.current?.playerX||r.width/2),
+      dy = e.clientY - r.top - (camera.current?.playerY||r.height/2);
     if (Math.abs(dx) > Math.abs(dy)) onMove(dx > 0 ? 1 : -1, 0);
     else onMove(0, dy > 0 ? 1 : -1);
   };
@@ -2190,10 +2199,7 @@ function ExplorationCanvas({
     <div className="exploration-canvas" onClick={click}>
       <canvas ref={ref} />
       <canvas className="building-layer" ref={buildingRef} />
-      <div className="map-compass">
-        <i>N</i>
-        <b />
-      </div>
+      <PlayerSprite pos={pos} health={health} aboard={aboard} anchorRef={playerRef} />
       <span className="map-scale">LOCAL SCAN · 1 CELL / 약 32 KM</span>
     </div>
   );
@@ -2220,6 +2226,8 @@ function terrainColor(t,palette){
 }
 
 const BUILDING_RECIPES = {
+  태양광발전기:{structure:3,circuit:2,data:0,desc:"전력 연구 후 낮 동안 5초마다 2 Wh를 생산하는 설비"},
+  온실:{structure:4,circuit:2,data:0,desc:"수경재배 연구 후 물·양분·전력을 소비해 식량을 생산하는 시설"},
   광산: {structure:3,circuit:1,data:0,desc:"행성의 확인·추정 원소를 회수하는 채굴·가스 추출 시설"},
   제작소: {
     structure: 4,
@@ -2266,7 +2274,10 @@ function ConstructionPanel({
   const [selected, setSelected] = useState("집"),
     recipe = BUILDING_RECIPES[selected];
   const canBuild =
+    (selected !== "태양광발전기" || technologies.includes("power")) &&
+    (selected !== "온실" || technologies.includes("hydroponics")) &&
     (selected !== "제작소" || technologies.includes("engineering")) &&
+    (selected !== "광산" || !!tile?.deposit) &&
     tile?.type !== "sea" &&
     stock.structure >= recipe.structure &&
     stock.circuit >= recipe.circuit &&
@@ -2328,7 +2339,7 @@ function ConstructionPanel({
             disabled={!canBuild}
             onClick={() => onBuild(selected)}
           >
-            {selected === "제작소" && !technologies.includes("engineering") ? "도서관에서 기초 공학 복원 필요" : `1셀에 ${selected} 건설하기`} <b>→</b>
+            {selected === "광산" && !tile?.deposit ? "광맥을 발견하고 그 위에 건설하세요" : selected === "제작소" && !technologies.includes("engineering") ? "도서관에서 기초 공학 복원 필요" : `1셀에 ${selected} 건설하기`} <b>→</b>
           </button>
         </>
       ) : (
@@ -2434,6 +2445,7 @@ function WorldOverview({
         tile = world[y]?.[x];
       if (!tile) return;
       ctx.fillStyle = terrainColor(tile,palette);
+      if(tile.deposit)ctx.fillStyle={Al:'#9eabb4',Mg:'#9ca88a',Si:'#80aaa6',C:'#5a6477',H:'#83aebb',O:'#91b5ad',N:'#9baab9',P:'#b4a07d',K:'#b29bbb'}[tile.deposit]||'#aabb88';
       ctx.fillRect(x * sx, y * sy, px, py);
     });
     if (showTrail) {
@@ -2580,17 +2592,19 @@ function ExplorationMap({ body, onOrbit }) {
     cx = Math.floor(W / 2),
     cy = Math.floor(H / 2);
   const palette = SURFACE_PALETTES[body] || SURFACE_PALETTES.지구;
-  const world = useMemo(() => makeExplorationWorld(body, W, H), [body, W, H]);
+  const saved=useMemo(()=>readExpedition(localStorage,body,W,H),[body,W,H]);
+  const world = useMemo(() => {const generated=makeExplorationWorld(body,W,H);for(const [key,tile] of saved?.overrides||[])generated.overrides.set(key,tile);return generated;}, [body, W, H,saved]);
   const expeditionSites = useMemo(() => createExpeditionSites(world, {x:cx,y:cy}), [world,cx,cy]);
-  const [discoveries, setDiscoveries] = useState([]);
-  const [blackboxDecoded, setBlackboxDecoded] = useState(false);
-  const [pos, setPos] = useState({ x: cx, y: cy });
-  const [revealed, setRevealed] = useState(() => new Set());
-  const [visited, setVisited] = useState(() => new Set([`${cx},${cy}`]));
-  const [day, setDay] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(600);
-  const [food, setFood] = useState(5);
-  const [inventory, setInventory] = useState({
+  const [discoveries, setDiscoveries] = useState(saved?.discoveries||[]);
+  const [blackboxDecoded, setBlackboxDecoded] = useState(saved?.blackboxDecoded||false);
+  const [pos, setPos] = useState(saved?.pos||{ x: cx, y: cy });
+  const nextMoveAt=useRef(0);
+  const [revealed, setRevealed] = useState(() => new Set(saved?.revealed||[]));
+  const [visited, setVisited] = useState(() => new Set(saved?.visited||[`${cx},${cy}`]));
+  const [day, setDay] = useState(saved?.day||1);
+  const [secondsLeft, setSecondsLeft] = useState(saved?.secondsLeft??600);
+  const [food, setFood] = useState(saved?.food??30);
+  const [inventory, setInventory] = useState(saved?.inventory||{
     선체판: 0,
     "부력 셀": 0,
     "동력 코어": 0,
@@ -2601,14 +2615,24 @@ function ExplorationMap({ body, onOrbit }) {
   const [miningOpen, setMiningOpen] = useState(false);
   const [miningCooldown, setMiningCooldown] = useState(0);
   const [miningNotice, setMiningNotice] = useState("");
-  const [shipModules, setShipModules] = useState([]);
-  const [technologies, setTechnologies] = useState([]);
-  const [scanner, setScanner] = useState(false);
+  const [shipModules, setShipModules] = useState(saved?.shipModules||[]);
+  const [technologies, setTechnologies] = useState(saved?.technologies||[]);
+  const [industry,setIndustry]=useState(()=>saved?.industry||initialIndustry());
+  const [timeScale,setTimeScale]=useState(1);
+  const [knowledgeToast,setKnowledgeToast]=useState(null);
+  const [insightHistory,setInsightHistory]=useState(saved?.insightHistory||[]);
+  const [staticTest,setStaticTest]=useState(saved?.staticTest||false);
+  const [launched,setLaunched]=useState(saved?.launched||false);
+  const [rocketDesign,setRocketDesign]=useState(saved?.rocketDesign||{dryMass:400,payload:80,propellant:4000,isp:300,thrustKN:100,losses:1500});
+  const industryContext=useRef(null);
+  const [scanner, setScanner] = useState(saved?.scanner||false);
   const [researchNotice, setResearchNotice] = useState("");
-  const [hunger, setHunger] = useState(0);
-  const [health, setHealth] = useState(100);
-  const [dead, setDead] = useState(false);
-  const [boat, setBoat] = useState(false);
+  const [hunger, setHunger] = useState(saved?.hunger||0);
+  const [health, setHealth] = useState(saved?.health??100);
+  const [dead, setDead] = useState(saved?.dead||false);
+  const [boat, setBoat] = useState(saved?.boat||false);
+  const [boatPosition, setBoatPosition] = useState(saved?.boatPosition||null);
+  const [aboard, setAboard] = useState(saved?.aboard||false);
   const [message, setMessage] = useState(
     "착륙 지점 주변만 지도에 표시되었습니다.",
   );
@@ -2621,10 +2645,10 @@ function ExplorationMap({ body, onOrbit }) {
   const [gatherMode, setGatherMode] = useState(
     () => localStorage.getItem("mongle-gather-mode") || "manual",
   );
-  const [buildings, setBuildings] = useState(() => new Map());
-  const [pins, setPins] = useState(() => new Map());
+  const [buildings, setBuildings] = useState(() => new Map(saved?.buildings||[]));
+  const [pins, setPins] = useState(() => new Map(saved?.pins||[]));
   const [buildOpen, setBuildOpen] = useState(false);
-  const [buildStock, setBuildStock] = useState({
+  const [buildStock, setBuildStock] = useState(saved?.buildStock||{
     structure: 6,
     circuit: 3,
     data: 2,
@@ -2634,7 +2658,18 @@ function ExplorationMap({ body, onOrbit }) {
     0,
   );
   const loadRatio = inventoryLoad / INVENTORY_CAPACITY;
+  const saveEnabled=useRef(true),saveState=useRef(null);
+  saveState.current={pos,day,secondsLeft,food,inventory,shipModules,technologies,industry,insightHistory,staticTest,launched,rocketDesign,scanner,hunger,health,dead,boat,boatPosition,aboard,buildings,pins,buildStock,discoveries,blackboxDecoded,revealed,visited,overrides:world.overrides};
+  useEffect(()=>{const save=()=>{if(saveEnabled.current&&saveState.current)writeExpedition(localStorage,body,saveState.current);};const timer=window.setInterval(save,5000);window.addEventListener('beforeunload',save);return()=>{window.clearInterval(timer);window.removeEventListener('beforeunload',save);save();};},[body]);
   const currentBuilding = buildings.get(`${pos.x},${pos.y}`);
+  const currentKey=`${pos.x},${pos.y}`;
+  industryContext.current={buildings,technologies,profile:BODY_START_DATA[body],phase:600-secondsLeft};
+  const showKnowledge=(tech,fromMemory=false)=>setKnowledgeToast({name:tech.name,formula:tech.formula,meaning:tech.meaning,desc:tech.desc,memory:tech.memory,fromMemory});
+  const recallInsight=(completed=technologies)=>{
+    const insight=memoryInsight(completed);
+    if(insight){setTechnologies(v=>v.includes(insight.id)?v:[...v,insight.id]);showKnowledge(insight,true);setInsightHistory(v=>[...v,`${insight.name} · 과거 기억에서 무료 복원`]);return insight.name;}
+    setInsightHistory(v=>[...v,'기억 조각을 연결했지만 이번에는 새로운 공학 통찰이 떠오르지 않았습니다.']);return null;
+  };
   const activeSite = expeditionSites.find(site => !discoveries.includes(site.id));
   const libraryEntry = [...buildings.entries()].find(([,b]) => b.type === "도서관");
   const libraryPosition = libraryEntry ? libraryEntry[0].split(",").map(Number) : [cx,cy];
@@ -2644,6 +2679,7 @@ function ExplorationMap({ body, onOrbit }) {
   const targetDistance = expeditionTarget ? Math.abs(pos.x-expeditionTarget.x)+Math.abs(pos.y-expeditionTarget.y) : 0;
   const expeditionPins = new Map(pins);
   expeditionPins.set(`${cx},${cy}`,"착륙 거점");
+  if(boatPosition && !aboard) expeditionPins.set(`${boatPosition.x},${boatPosition.y}`,"정박한 탐사선");
   if(expeditionTarget) expeditionPins.set(`${expeditionTarget.x},${expeditionTarget.y}`,expeditionTarget.name);
   const investigateSite = () => {
     if(dead || !activeSite || (discoveries.includes("wreck") && !blackboxDecoded)) return;
@@ -2651,6 +2687,7 @@ function ExplorationMap({ body, onOrbit }) {
     setDiscoveries(v=>[...v,activeSite.id]);
     setBuildStock(v=>({...v,data:v.data+activeSite.data,structure:v.structure+activeSite.structure,circuit:v.circuit+activeSite.circuit}));
     if(activeSite.id==='greenhouse') setFood(v=>v+4);
+    if(technologies.includes('memory-home'))recallInsight();
     setMessage(`${activeSite.desc} 기록 매체 +${activeSite.data} · 구조재 +${activeSite.structure} · 회로 +${activeSite.circuit}`);
   };
   const currentStorage = currentBuilding?.type === "보관소" ? currentBuilding : null;
@@ -2684,19 +2721,23 @@ function ExplorationMap({ body, onOrbit }) {
   useEffect(() => revealAround(cx, cy), []);
   const move = (dx, dy) => {
     if (dead || miningOpen || researchOpen || inventoryOpen || buildOpen || settingsOpen || overviewOpen) return;
+    const now=performance.now();if(now<nextMoveAt.current)return;
     const nx = pos.x + dx,
       ny = pos.y + dy;
     if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
     const tile = world[ny][nx];
-    if (tile.type === "sea" && !boat) {
+    if (!canTravel(aboard,tile)) {
       setMessage(
-        "바다는 걸어서 건널 수 없습니다. 부품을 모아 탐사선을 먼저 만드세요.",
+        aboard ? "배로는 육지를 지나갈 수 없습니다. 해안에서 ‘하선’을 눌러 내려주세요." : boat ? "걸어서 바다에 들어갈 수 없습니다. 정박한 배 옆으로 돌아가 승선하세요." : "바다는 걸어서 건널 수 없습니다. 탐사선을 먼저 만드세요.",
       );
       return;
     }
     setPos({ x: nx, y: ny });
+    nextMoveAt.current=now+movementDelay(tile,aboard);
+    if(aboard) setBoatPosition({x:nx,y:ny});
     setVisited((v) => new Set([...v, `${nx},${ny}`]));
     revealAround(nx, ny);
+    if(tile.deposit){setMessage(`${MINE_ELEMENTS.find(e=>e.symbol===tile.deposit)?.name}(${tile.deposit}) 광맥 발견 · 이 지대 위에 광산을 지으면 해당 원소만 채굴합니다.`);return;}
     if (tile.type === "resource" && gatherMode === "auto") {
       gatherResource(nx, ny);
       return;
@@ -2746,7 +2787,7 @@ function ExplorationMap({ body, onOrbit }) {
       circuit: v.circuit + (part === "부력 셀" ? 1 : 0),
       data: v.data + (part === "동력 코어" ? 1 : 0),
     }));
-    world[y][x] = { type: "land", depth: "land" };
+    world[y][x] = { ...tile, type: "land", depth: "land" };
     setMapRevision((v) => v + 1);
     setMessage(
       medicine
@@ -2755,7 +2796,9 @@ function ExplorationMap({ body, onOrbit }) {
     );
   };
   const constructBuilding = (type) => {
-    if (dead) return;
+      if (dead||launched) return;
+    const buildingTech={태양광발전기:'power',온실:'hydroponics'}[type];
+    if(buildingTech&&!technologies.includes(buildingTech)){setMessage("해당 설비의 선행 공학 연구가 필요합니다.");return;}
     if (type === "제작소" && !technologies.includes("engineering")) {
       setMessage("도서관에서 기초 공학을 먼저 복원하세요.");
       return;
@@ -2763,6 +2806,7 @@ function ExplorationMap({ body, onOrbit }) {
     const key = `${pos.x},${pos.y}`,
       tile = world[pos.y]?.[pos.x],
       existing = buildings.get(key);
+    if(type==='광산' && !existing && !tile?.deposit){setMessage("이곳에는 광맥이 없습니다. 원소 기호가 보이는 광맥 위에서 광산을 건설하세요.");return;}
     if (tile?.type === "sea") {
       setMessage("바다 위에는 건물을 세울 수 없습니다.");
       return;
@@ -2809,6 +2853,7 @@ function ExplorationMap({ body, onOrbit }) {
         new Map(prev).set(key, {
           type,
           level: 1,
+          ...(type === "광산" ? {mineElement:tile.deposit} : {}),
           ...(type === "보관소" ? { storage: {} } : {}),
         }),
       );
@@ -2901,6 +2946,8 @@ function ExplorationMap({ body, onOrbit }) {
       setMessage("탐사선이 이미 준비되어 있습니다.");
       return;
     }
+    const launchTile=adjacentTiles(world,pos).find(p=>world[p.y][p.x].type==='sea');
+    if(!launchTile){setResearchNotice("탐사선은 바다와 바로 인접한 해안 제작소에서 조립하세요.");setMessage("바다와 인접한 제작소가 필요합니다.");return;}
     const need = { 선체판: 3, "부력 셀": 2, "동력 코어": 1 };
     const missing = Object.entries(need).filter(([k, v]) => inventory[k] < v);
     if (missing.length) {
@@ -2916,24 +2963,38 @@ function ExplorationMap({ body, onOrbit }) {
       ),
     );
     setBoat(true);
+    setBoatPosition(launchTile);
     setResearchNotice("소형 탐사선 완성 · 바다를 건너 다음 기록을 찾으세요.");
-    setMessage("소형 탐사선 완성. 이제 바다 칸으로 이동할 수 있습니다.");
+    setMessage("소형 탐사선 완성. 해안 옆 바다에 정박했습니다. 승선 버튼으로 올라타세요.");
+  };
+  const toggleBoarding = () => {
+    if(dead || inventoryOpen || buildOpen || researchOpen || miningOpen || overviewOpen || settingsOpen)return;
+    const destination=boardingDestination(world,pos,boatPosition,aboard);
+    if(!destination){setMessage(aboard?"하선하려면 육지 바로 옆으로 항해하세요.":"지도에 표시된 정박한 배 옆으로 돌아와야 승선할 수 있습니다.");return;}
+    setAboard(v=>!v);setPos(destination);
+    setVisited(v=>new Set([...v,`${destination.x},${destination.y}`]));revealAround(destination.x,destination.y);
+    setMessage(aboard?"해안에 내렸습니다. 배는 방금 내린 바다 칸에 정박해 있습니다.":"탐사선에 승선했습니다. 바다로만 이동할 수 있습니다.");
   };
   const restoreTechnology = (id) => {
     const index = TECHNOLOGIES.findIndex(t => t.id === id), tech = TECHNOLOGIES[index];
-    if (dead || !tech || currentBuilding?.type !== "도서관" || technologies.includes(id) || buildStock.data < tech.cost || (index > 0 && !technologies.includes(TECHNOLOGIES[index - 1].id))) return;
+    if (dead || !tech || currentBuilding?.type !== "도서관" || technologies.includes(id) || buildStock.data < tech.cost || !prerequisitesMet(tech,technologies,discoveries.includes("wreck"))) return;
     if(id === "engineering" && !discoveries.includes("wreck")) {
       setResearchNotice("먼저 추락한 조사선에서 블랙박스를 회수하세요. 탐사 화면의 신호를 따라가면 됩니다."); return;
     }
     if(id === "engineering") setBlackboxDecoded(true);
     setBuildStock(v => ({...v, data:v.data-tech.cost}));
     setTechnologies(v => [...v,id]);
-    setResearchNotice(`${tech.name} 복원 완료. 기억: ${tech.memory}`);
+    showKnowledge(tech);
+    if(tech.branch==='기억'){
+      const name=recallInsight([...technologies,id]);
+      setResearchNotice(name?`기억이 연결되며 ${name}을 뜻밖에 복원했습니다!`:`${tech.name} 복원 완료. 이번 기억에서는 추가 공학 통찰이 발생하지 않았습니다.`);
+    }
+    if(tech.branch!=='기억')setResearchNotice(`${tech.name} 복원 완료.${tech.memory ? ` 기억: ${tech.memory}` : ` ${tech.desc}`}`);
     setMessage(`${tech.name} 복원 완료 · 새로운 제작법이 열렸습니다.`);
   };
   const extractElement = (symbol) => {
     const profile = BODY_START_DATA[body];
-    if(dead || currentBuilding?.type !== "광산" || miningCooldown || health<=1 || inventoryLoad>=INVENTORY_CAPACITY || !MINE_ELEMENTS.some(e=>e.symbol===symbol) || !miningChance(profile,symbol)) return;
+    if(dead || currentBuilding?.type !== "광산" || currentBuilding.mineElement!==symbol || miningCooldown || health<=1 || inventoryLoad>=INVENTORY_CAPACITY || !MINE_ELEMENTS.some(e=>e.symbol===symbol) || !miningChance(profile,symbol)) return;
     setMiningCooldown(2);
     setHealth(v=>Math.max(1,v-1));
     const amount=mineResult(profile,symbol);
@@ -2943,10 +3004,12 @@ function ExplorationMap({ body, onOrbit }) {
   };
   const craftShipModule = (id) => {
     const recipe=SHIP_RECIPES.find(r=>r.id===id);
+    const requiredTech=id==='fuel'||id==='engine'?'propulsion':id==='guidance'?'guidance':'materials';
+    if(!technologies.includes(requiredTech))return;
     if(dead || currentBuilding?.type!=="제작소" || !technologies.includes("engineering") || !recipe || shipModules.includes(id) || Object.entries(recipe.need).some(([k,v])=>(inventory[k]||0)<v)) return;
     setInventory(v=>Object.fromEntries(Object.entries(v).map(([k,n])=>[k,n-(recipe.need[k]||0)])));
     setShipModules(v=>[...v,id]);
-    const text=`${recipe.name} 제작 완료 · 우주선 핵심 부품 ${shipModules.length+1}/3`;
+    const text=`${recipe.name} 제작 완료 · 우주선 핵심 부품 ${shipModules.length+1}/4`;
     setMiningNotice(text);setMessage(text);
   };
   useEffect(()=>{
@@ -2966,8 +3029,57 @@ function ExplorationMap({ body, onOrbit }) {
     setResearchNotice(text); setMessage(text);
   };
   useEffect(() => { if (scanner) revealAround(pos.x,pos.y); }, [scanner]);
+  const industryCommand=(command)=>{
+    if(dead||launched)return;
+    const fail=text=>{setIndustry(v=>({...v,log:text}));return;};
+    const spend=(need)=>Object.entries(need).every(([k,n])=>(inventory[k]||0)>=n);
+    const consume=need=>setInventory(v=>Object.fromEntries(Object.entries(v).map(([k,n])=>[k,n-(need[k]||0)])));
+    if(command==='install-robot'){
+      if(currentBuilding?.type!=='광산'||!technologies.includes('robot-miner')||industry.robots[currentKey])return;
+      if(!spend({Al:2,Si:1}))return fail('로봇 설치에 Al 2개와 Si 1개가 필요합니다.');
+      consume({Al:2,Si:1});setIndustry(v=>({...v,robots:{...v.robots,[currentKey]:{symbol:currentBuilding.mineElement,buffer:0,cycle:0}},log:'채굴 로봇 설치 완료 · 전력이 있으면 광맥 원소를 자동 회수합니다.'}));return;
+    }
+    if(command==='collect-ore'){
+      const all=technologies.includes('logistics')&&currentBuilding?.type==='보관소';
+      if(!all&&currentBuilding?.type!=='광산')return;
+      let room=INVENTORY_CAPACITY-inventoryLoad,total=0;
+      const robots={...industry.robots},added={};
+      for(const [key,robot] of Object.entries(robots))if(all||key===currentKey){const count=Math.min(room,robot.buffer);if(count){added[robot.symbol]=(added[robot.symbol]||0)+count;robots[key]={...robot,buffer:robot.buffer-count};room-=count;total+=count;}}
+      setInventory(v=>{const next={...v};for(const [k,n] of Object.entries(added))next[k]=(next[k]||0)+n;return next;});
+      setIndustry(v=>({...v,robots,log:`광물 ${total}개 회수 · 가방 여유에 맞춰 옮겼습니다.`}));return;
+    }
+    if(command==='collect-food'){if(currentBuilding?.type!=='온실')return;setFood(v=>v+industry.food);setIndustry(v=>({...v,food:0,log:`식량 ${industry.food}개를 생존 보급품으로 회수했습니다.`}));return;}
+    if(command==='collect-data'){if(currentBuilding?.type!=='도서관')return;setBuildStock(v=>({...v,data:v.data+industry.data}));setIndustry(v=>({...v,data:0,log:`연구 기록 ${industry.data}개 회수 완료.`}));return;}
+    if(['make-water','make-nutrients','recycle'].includes(command)){
+      if(currentBuilding?.type!=='제작소')return;
+      if(command==='make-water'){
+        if(!technologies.includes('water')||!spend({H:1,O:1})||industry.energy<2)return fail('수처리 연구·H 1·O 1·전력 2 Wh가 필요합니다.');
+        consume({H:1,O:1});setIndustry(v=>({...v,water:v.water+4,energy:v.energy-2,log:'재배용 물 4 L 보충 완료.'}));
+      }else if(command==='make-nutrients'){
+        if(!technologies.includes('hydroponics')||!spend({N:1,P:1,K:1}))return fail('수경재배 연구와 N·P·K 각 1개가 필요합니다.');
+        consume({N:1,P:1,K:1});setIndustry(v=>({...v,nutrients:v.nutrients+3,log:'양분 3묶음 보충 완료.'}));
+      }else{
+        if(!technologies.includes('recycling')||food<1)return fail('양분 재순환 연구와 식량 1개가 필요합니다.');
+        setFood(v=>v-1);setIndustry(v=>({...v,nutrients:v.nutrients+1,log:'식량 부산물을 양분 1묶음으로 재활용했습니다.'}));
+      }return;
+    }
+    if(command==='static-fire'){
+      if(!technologies.includes('static-fire')||!shipModules.includes('engine')||industry.energy<5||!spend({H:1,O:2}))return fail('정적 시험에는 엔진 모듈·시험 연구·H 1·O 2·전력 5 Wh가 필요합니다.');
+      consume({H:1,O:2});setIndustry(v=>({...v,energy:v.energy-5,log:'현재 설계의 정적 연소시험 완료. 설계값을 변경하면 재시험해야 합니다.'}));setStaticTest(true);return;
+    }
+    if(command==='launch'){
+      const perf=rocketPerformance({...rocketDesign,gravity:BODY_START_DATA[body]?.gravity||3.71,radius:6371000*radiusRatio});
+      if(!flightReadiness({day,techs:technologies,staticTest,modules:shipModules,energy:industry.energy,performance:perf}))return fail('발사 조건이 충족되지 않았습니다. 설계·시험·부품·생존 기간을 확인하세요.');
+      setIndustry(v=>({...v,energy:v.energy-10,log:'발사 성공 · 모델상의 저궤도 진입 목표를 달성했습니다.'}));setLaunched(true);setMessage('365일 생존과 공학 검증 완료 · 첫 궤도에 올랐습니다.');setKnowledgeToast({name:'첫 궤도에 도달했습니다',formula:`Δv ${perf.deltaV.toFixed(0)} m/s · T/W ${perf.twr.toFixed(2)}`,meaning:'365일 생존·설비 생산·정적 시험·예비 성능 기준을 모두 충족했습니다.',desc:'가족에게 돌아갈 길이 한 걸음 가까워졌습니다.'});
+    }
+  };
+  useEffect(()=>{
+    if(dead||launched)return;
+    const timer=window.setInterval(()=>{const c=industryContext.current;setIndustry(v=>advanceIndustry(v,c.buildings,c.technologies,c.profile,c.phase,timeScale));},1000);
+    return()=>clearInterval(timer);
+  },[dead,launched,timeScale]);
   const endDay = () => {
-    if (dead) return;
+    if (dead||launched) return;
     setDay((v) => v + 1);
     setSecondsLeft(600);
     if (food > 0) {
@@ -2987,20 +3099,20 @@ function ExplorationMap({ body, onOrbit }) {
     }
   };
   useEffect(() => {
-    if (dead) return;
+    if (dead||launched) return;
     const timer = window.setInterval(
       () =>
         setSecondsLeft((v) => {
-          if (v <= 1) {
+          if (v <= timeScale) {
             window.setTimeout(endDay, 0);
-            return 600;
+            return 600+v-timeScale;
           }
-          return v - 1;
+          return v - timeScale;
         }),
       1000,
     );
     return () => window.clearInterval(timer);
-  }, [dead, food, hunger]);
+  }, [dead,launched, food, hunger,timeScale]);
   useEffect(() => {
     if (dead || secondsLeft > 120 || secondsLeft % 30 !== 0 || shelter) return;
     setHealth((v) => {
@@ -3032,6 +3144,7 @@ function ExplorationMap({ body, onOrbit }) {
   useEffect(() => {
     const key = (e) => {
       if (/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName)) return;
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
       if (e.code === "KeyI") {
         if (e.repeat) return;
         setInventoryOpen((v) => !v);
@@ -3092,7 +3205,7 @@ function ExplorationMap({ body, onOrbit }) {
         <div className="map-head-stats">
           <span>
             <small>
-              DAY {String(day).padStart(3, "0")} ·{" "}
+              DAY {String(day).padStart(3, "0")} / 365 ·{" "}
               {isNight ? "NIGHT" : "DAYLIGHT"}
             </small>
             <b>{clock}</b>
@@ -3104,6 +3217,7 @@ function ExplorationMap({ body, onOrbit }) {
             </b>
           </span>
           <button onClick={onOrbit}>궤도 보기</button>
+          <label className="time-compression">시간 배속<select aria-label="게임 시간 배속" value={timeScale} onChange={e=>setTimeScale(Number(e.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="60">60×</option></select></label>
         </div>
       </header>
       <aside className="map-status">
@@ -3163,6 +3277,7 @@ function ExplorationMap({ body, onOrbit }) {
           </button>
         </div>
         <div className="map-navigation">
+          {boat && <button onClick={toggleBoarding}><i aria-hidden="true">♧</i>{aboard?'하선':'배에 승선'}</button>}
           <button onClick={()=>{setMiningNotice("");setMiningOpen(true);}}><i aria-hidden="true">◇</i> 광산 · 원소</button>
           <button onClick={() => { setResearchNotice(""); setResearchOpen(true); }}><i aria-hidden="true">▥</i> 지식 · 제작</button>
           <button onClick={() => setOverviewOpen(true)}>
@@ -3190,6 +3305,8 @@ function ExplorationMap({ body, onOrbit }) {
         key={mapRevision}
         world={world}
         pos={pos}
+        health={health}
+        aboard={aboard}
         revealed={revealed}
         visited={visited}
         onMove={move}
@@ -3337,8 +3454,9 @@ function ExplorationMap({ body, onOrbit }) {
           </footer>
         </div>
       )}
-      {miningOpen && <MiningPanel body={body} profile={BODY_START_DATA[body]} building={currentBuilding} inventory={inventory} modules={shipModules} cooldown={miningCooldown} health={health} load={inventoryLoad} onMine={extractElement} onCraft={craftShipModule} onClose={()=>setMiningOpen(false)} notice={miningNotice} />}
-      {researchOpen && <ResearchPanel hasBlackbox={discoveries.includes("wreck")} stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
+      {miningOpen && <MiningPanel technologies={technologies} body={body} profile={BODY_START_DATA[body]} building={currentBuilding} inventory={inventory} modules={shipModules} cooldown={miningCooldown} health={health} load={inventoryLoad} onMine={extractElement} onCraft={craftShipModule} onClose={()=>setMiningOpen(false)} notice={miningNotice} />}
+      {knowledgeToast&&<aside className="knowledge-toast" role="status"><small>{knowledgeToast.fromMemory?'과거의 기억에서 떠오른 공학':'새로운 지식을 알게 되었습니다'}</small><h3>{knowledgeToast.formula?`${knowledgeToast.formula}를 알게 되었습니다!`:knowledgeToast.name}</h3>{knowledgeToast.formula&&<code>{knowledgeToast.formula}</code>}<p>{knowledgeToast.meaning||knowledgeToast.memory}</p><p>{knowledgeToast.desc}</p><button onClick={()=>setKnowledgeToast(null)}>이해했습니다</button></aside>}
+      {researchOpen && <ResearchPanel insightHistory={insightHistory} operations={<IndustryPanel industry={industry} buildings={buildings} currentKey={currentKey} techs={technologies} body={body} gravity={BODY_START_DATA[body]?.gravity||3.71} radius={6371000*radiusRatio} day={day} design={rocketDesign} onDesign={(key,value)=>{setRocketDesign(v=>({...v,[key]:value}));setStaticTest(false);}} modules={shipModules} staticTest={staticTest} launched={launched} onCommand={industryCommand}/>} hasBlackbox={discoveries.includes("wreck")} stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
       {buildOpen && (
         <ConstructionPanel
           position={pos}
@@ -3379,7 +3497,7 @@ function ExplorationMap({ body, onOrbit }) {
           <small>SURVIVAL FAILED</small>
           <h2>불시착지에서 생존하지 못했습니다.</h2>
           <p>식량과 체력을 관리하고, 밤이 오기 전에 집을 건설하세요.</p>
-          <button onClick={() => window.location.reload()}>
+          <button onClick={() => {saveEnabled.current=false;localStorage.removeItem(saveKey(body));window.location.reload();}}>
             처음부터 다시 시작
           </button>
         </div>
@@ -3674,7 +3792,9 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(
+const mountElement=document.getElementById("root");
+const appRoot=mountElement.__mongleRoot||(mountElement.__mongleRoot=createRoot(mountElement));
+appRoot.render(
   <>
     <App />
     <Analytics />
