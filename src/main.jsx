@@ -2262,7 +2262,7 @@ const BUILDING_RECIPES = {
   },
 };
 
-const INVENTORY_CAPACITY = 24;
+const INVENTORY_CAPACITY = 100;
 const INVENTORY_WEIGHT = {
   선체판: 3,
   "부력 셀": 2,
@@ -3041,6 +3041,7 @@ function ExplorationMap({ body, onOrbit }) {
           <span>
             <small>체력</small>
             <b className={health < 40 ? "danger" : ""}>{health}</b>
+            <i className="health-track" aria-hidden="true"><i style={{width: `${Math.max(0, health)}%`}} /></i>
           </span>
           <span className={`hunger-${hunger}`}>
             <small>상태</small>
@@ -3083,10 +3084,11 @@ function ExplorationMap({ body, onOrbit }) {
         </div>
         <div className="map-navigation">
           <button onClick={() => setOverviewOpen(true)}>
-            세계 지도 <kbd>M</kbd>
+            <i aria-hidden="true">◎</i> 세계 지도 <kbd>M</kbd>
           </button>
-          <button onClick={() => setSettingsOpen(true)}>지도 설정</button>
+          <button onClick={() => setSettingsOpen(true)}><i aria-hidden="true">⚙</i> 지도 설정</button>
           <button onClick={togglePin}>
+            <i aria-hidden="true">⌖</i>
             {pins.has(`${pos.x},${pos.y}`) ? "핀 제거" : "현재 위치 핀"}
           </button>
         </div>

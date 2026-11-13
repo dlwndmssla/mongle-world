@@ -107,3 +107,37 @@
  .planet-map-game .map-legend{left:12px;bottom:92px;max-width:180px;padding:8px;font-size:9px}
 }
 @media(max-height:500px) and (min-width:761px){.planet-map-game .map-resources,.planet-map-game .map-navigation{top:70px}.planet-map-game .map-status>p{bottom:102px}.planet-map-game .map-tools{bottom:12px}}
+/* Quieter navigation and a compact survival readout. */
+.planet-map-game .map-game-head{left:28px;right:28px;top:20px}
+.planet-map-game .map-game-head>div:first-child{border-left:0;padding-left:0}
+.planet-map-game .map-game-head small{font-size:9px;letter-spacing:.18em;color:#75abae}
+.planet-map-game .map-game-head h1{font-size:21px;color:#ece7d9;margin-top:6px}
+.planet-map-game .map-head-stats span{border-color:#ffffff14}
+.planet-map-game .map-head-stats span b{font-weight:400;color:#ece7d9}
+.planet-map-game .map-head-stats button{border-color:#c3d0c22b;border-radius:8px;background:#ffffff05;color:#d2ded7;font-size:11px}
+.planet-map-game .map-resources{top:94px;left:28px;width:285px;padding:0 0 12px;gap:16px;border:0;border-bottom:1px solid #91b6b225;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:blur(10px)}
+.planet-map-game .map-resources span{min-height:45px;padding:0;align-items:flex-start;gap:5px;background:transparent;text-align:left;border:0;border-radius:0}
+.planet-map-game .map-resources span small{font-size:10px;letter-spacing:.08em;color:#78938f}
+.planet-map-game .map-resources span b{font-size:21px;font-weight:400;color:#e9e5d9}
+.planet-map-game .map-resources span:first-child b{color:#e7c995}
+.planet-map-game .map-resources span:last-child b{font-size:15px;color:#91cbb3;line-height:25px}
+.health-track{display:block;width:82px;height:3px;background:#ffffff15;border-radius:3px;overflow:hidden}
+.health-track>i{display:block;height:100%;background:#8ccebc;border-radius:3px}
+.planet-map-game .map-navigation{right:28px;top:98px;padding:0;gap:8px;border:0;border-radius:0;background:transparent}
+.planet-map-game .map-navigation button{display:flex;align-items:center;gap:7px;min-height:36px;padding:8px 11px;border:1px solid #b8cfca20;border-radius:8px;background:#112127a6;color:#aec6bf;font-size:11px;box-shadow:none;transition:background .2s,border-color .2s}
+.map-navigation button i{font-style:normal;font-size:17px;color:#9acbbb}
+.planet-map-game .map-navigation button:hover{background:#23403e;border-color:#93cdbb66;color:#fff5dc}
+.planet-map-game .map-navigation kbd{font-size:9px;opacity:.6}
+.planet-map-game .map-compass{top:160px;right:32px;opacity:.45}
+.planet-map-game .map-tools{border-color:#9ab8ac30;background:linear-gradient(160deg,#142526ee,#09171dee);box-shadow:0 12px 35px #0005;border-radius:12px}
+.planet-map-game .map-tools button{border-color:#89a79a25;background:#ffffff04;color:#c2d0c4;border-radius:8px}
+.planet-map-game .map-tools .inventory-control{border-color:#b4d1b956;background:linear-gradient(130deg,#335348,#203b36);color:#e8efdd;box-shadow:none}
+@media(max-width:760px){
+ .planet-map-game .map-game-head{left:18px;right:18px;top:16px}
+ .planet-map-game .map-game-head h1{font-size:17px}
+ .planet-map-game .map-resources{left:18px;top:83px;width:235px;gap:12px}
+ .planet-map-game .map-navigation{right:14px;top:164px;gap:7px}
+ .planet-map-game .map-navigation button{font-size:11px;min-height:38px;padding:8px 10px}
+ .planet-map-game .map-resources span b{font-size:19px}
+ .planet-map-game .map-compass{top:80px;right:18px}
+}
