@@ -180,7 +180,7 @@
   .periodic-grid{grid-template-columns:repeat(18,34px);width:max-content;min-width:0;gap:4px}
   .periodic-grid>button{width:34px;height:38px}
   .element-effect{min-width:620px}
-  .birth-footer{position:fixed;z-index:25;left:0;right:0;bottom:0;min-height:64px;padding:10px 16px;background:rgba(3,9,26,.96);backdrop-filter:blur(12px)}
+  .birth-footer{position:sticky;z-index:25;left:auto;right:auto;bottom:0;min-height:64px;padding:10px 16px;background:rgba(3,9,26,.96);backdrop-filter:blur(12px)}
   .launch-birth{width:100%;justify-content:space-between;margin:0!important}
   .map-game-head{align-items:flex-start}
   .map-head-stats{gap:6px}
@@ -202,12 +202,12 @@
 }
 @media(max-width:720px){
   .element-panel{overflow:hidden}
-  .element-title{align-items:flex-start;gap:8px}
-  .element-title h3{font-size:21px}
-  .element-legend{gap:4px;font-size:6px;white-space:nowrap}
-  .periodic-grid{grid-template-columns:repeat(18,minmax(0,1fr));width:100%;gap:2px}
-  .periodic-grid>button{width:auto;height:auto;min-width:0;aspect-ratio:1;border-radius:3px!important;padding:0!important}
-  .periodic-grid>button b{font-size:clamp(4px,1.65vw,7px);line-height:1}
+  .element-title{display:block;margin-bottom:12px}
+  .element-title h3{font-size:21px;line-height:1.15;margin-bottom:9px}
+  .element-legend{justify-content:flex-start;flex-wrap:wrap;gap:5px 9px;font-size:6px;white-space:normal}
+  .periodic-grid{clear:both;grid-template-columns:repeat(18,minmax(0,1fr));width:100%;gap:2px;margin-top:5px}
+  .periodic-grid>button{width:auto;height:auto;min-width:0;aspect-ratio:1;border-radius:3px!important;padding:0!important;overflow:hidden;contain:paint}
+  .periodic-grid>button b{display:block;max-width:100%;font-size:clamp(4px,1.55vw,6px);line-height:1;overflow:hidden;text-align:center}
   .periodic-grid>button small{display:none}
   .series-label{font-size:4px!important;letter-spacing:-.08em}
   .element-effect{min-width:0;grid-template-columns:1fr;gap:10px;padding:12px;margin-top:13px}
