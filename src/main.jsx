@@ -15,6 +15,8 @@ import ResearchPanel, { TECHNOLOGIES } from "./ResearchPanel.jsx";
 import "./research.css";
 import { createExpeditionSites, signalDirection } from "./expeditions.js";
 import { createTerrainSampler } from "./terrain.js";
+import MiningPanel from "./MiningPanel.jsx";
+import { MINE_ELEMENTS, SHIP_RECIPES, miningChance, mineResult } from "./mining.js";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -2218,6 +2220,7 @@ function terrainColor(t,palette){
 }
 
 const BUILDING_RECIPES = {
+  광산: {structure:3,circuit:1,data:0,desc:"행성의 확인·추정 원소를 회수하는 채굴·가스 추출 시설"},
   제작소: {
     structure: 4,
     circuit: 2,
@@ -2595,6 +2598,10 @@ function ExplorationMap({ body, onOrbit }) {
   });
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [miningOpen, setMiningOpen] = useState(false);
+  const [miningCooldown, setMiningCooldown] = useState(0);
+  const [miningNotice, setMiningNotice] = useState("");
+  const [shipModules, setShipModules] = useState([]);
   const [technologies, setTechnologies] = useState([]);
   const [scanner, setScanner] = useState(false);
   const [researchNotice, setResearchNotice] = useState("");
@@ -2676,7 +2683,7 @@ function ExplorationMap({ body, onOrbit }) {
     });
   useEffect(() => revealAround(cx, cy), []);
   const move = (dx, dy) => {
-    if (dead || researchOpen || inventoryOpen || buildOpen || settingsOpen || overviewOpen) return;
+    if (dead || miningOpen || researchOpen || inventoryOpen || buildOpen || settingsOpen || overviewOpen) return;
     const nx = pos.x + dx,
       ny = pos.y + dy;
     if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
@@ -2924,6 +2931,29 @@ function ExplorationMap({ body, onOrbit }) {
     setResearchNotice(`${tech.name} 복원 완료. 기억: ${tech.memory}`);
     setMessage(`${tech.name} 복원 완료 · 새로운 제작법이 열렸습니다.`);
   };
+  const extractElement = (symbol) => {
+    const profile = BODY_START_DATA[body];
+    if(dead || currentBuilding?.type !== "광산" || miningCooldown || health<=1 || inventoryLoad>=INVENTORY_CAPACITY || !MINE_ELEMENTS.some(e=>e.symbol===symbol) || !miningChance(profile,symbol)) return;
+    setMiningCooldown(2);
+    setHealth(v=>Math.max(1,v-1));
+    const amount=mineResult(profile,symbol);
+    if(amount) setInventory(v=>({...v,[symbol]:(v[symbol]||0)+amount}));
+    const text=amount ? `${symbol} 원소 1개 회수 성공 · 체력 −1` : `${symbol} 회수 실패 · 이번 시도에서는 원소를 찾지 못했습니다. 체력 −1`;
+    setMiningNotice(text);setMessage(text);
+  };
+  const craftShipModule = (id) => {
+    const recipe=SHIP_RECIPES.find(r=>r.id===id);
+    if(dead || currentBuilding?.type!=="제작소" || !technologies.includes("engineering") || !recipe || shipModules.includes(id) || Object.entries(recipe.need).some(([k,v])=>(inventory[k]||0)<v)) return;
+    setInventory(v=>Object.fromEntries(Object.entries(v).map(([k,n])=>[k,n-(recipe.need[k]||0)])));
+    setShipModules(v=>[...v,id]);
+    const text=`${recipe.name} 제작 완료 · 우주선 핵심 부품 ${shipModules.length+1}/3`;
+    setMiningNotice(text);setMessage(text);
+  };
+  useEffect(()=>{
+    if(!miningCooldown)return;
+    const timer=window.setTimeout(()=>setMiningCooldown(v=>Math.max(0,v-1)),1000);
+    return ()=>window.clearTimeout(timer);
+  },[miningCooldown]);
   const craftEquipment = (id) => {
     if (dead || currentBuilding?.type !== "제작소") return;
     if (id === "boat") { buildBoat(); return; }
@@ -3012,6 +3042,7 @@ function ExplorationMap({ body, onOrbit }) {
         return;
       }
       if (e.key === "Escape") {
+        setMiningOpen(false);
         setResearchOpen(false);
         setOverviewOpen(false);
         setSettingsOpen(false);
@@ -3019,7 +3050,7 @@ function ExplorationMap({ body, onOrbit }) {
         setBuildOpen(false);
         return;
       }
-      if (researchOpen) return;
+      if (researchOpen || miningOpen) return;
       if (
         e.code === "Space" &&
         gatherMode === "manual" &&
@@ -3132,6 +3163,7 @@ function ExplorationMap({ body, onOrbit }) {
           </button>
         </div>
         <div className="map-navigation">
+          <button onClick={()=>{setMiningNotice("");setMiningOpen(true);}}><i aria-hidden="true">◇</i> 광산 · 원소</button>
           <button onClick={() => { setResearchNotice(""); setResearchOpen(true); }}><i aria-hidden="true">▥</i> 지식 · 제작</button>
           <button onClick={() => setOverviewOpen(true)}>
             <i aria-hidden="true">◎</i> 세계 지도 <kbd>M</kbd>
@@ -3235,7 +3267,7 @@ function ExplorationMap({ body, onOrbit }) {
                           : "◇"}
                   </i>
                   <span>
-                    <b>{name}</b>
+                    <b>{MINE_ELEMENTS.find(e=>e.symbol===name)?.name || name}</b>
                     <small>
                       {name === "선체판"
                         ? "HULL PLATE"
@@ -3243,7 +3275,7 @@ function ExplorationMap({ body, onOrbit }) {
                           ? "FLOAT CELL"
                           : name === "동력 코어"
                             ? "DRIVE CORE"
-                            : "MEDICAL KIT"}
+                            : MINE_ELEMENTS.some(e=>e.symbol===name) ? `${name} · 우주선 원료` : "MEDICAL KIT"}
                     </small>
                   </span>
                   <strong>{String(count).padStart(2, "0")}</strong>
@@ -3305,6 +3337,7 @@ function ExplorationMap({ body, onOrbit }) {
           </footer>
         </div>
       )}
+      {miningOpen && <MiningPanel body={body} profile={BODY_START_DATA[body]} building={currentBuilding} inventory={inventory} modules={shipModules} cooldown={miningCooldown} health={health} load={inventoryLoad} onMine={extractElement} onCraft={craftShipModule} onClose={()=>setMiningOpen(false)} notice={miningNotice} />}
       {researchOpen && <ResearchPanel hasBlackbox={discoveries.includes("wreck")} stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
       {buildOpen && (
         <ConstructionPanel

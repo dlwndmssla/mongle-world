@@ -19,6 +19,7 @@
 .research-panel>footer{height:auto;padding:16px 24px;border-top:1px solid #ffffff12;gap:12px;flex-wrap:wrap;font-size:11px;letter-spacing:0;color:#8eaaa0}
 .planet-map-game .map-navigation{flex-wrap:wrap;max-width:470px;justify-content:flex-end}
 .building-choice{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mining-explanation{font-size:12px;line-height:1.8;color:#a5bab0}.research-columns h4>small{float:right;font-size:12px;color:#b5c8ba}.research-columns h4>span{font-weight:400;color:#a8bcae;font-size:14px}
 .expedition-objective{position:absolute;z-index:8;left:28px;top:180px;width:270px;padding:16px;border:1px solid #b5c58d35;border-radius:12px;background:linear-gradient(145deg,#1b2c2be8,#0b1921e8);box-shadow:0 8px 30px #0003}
 .expedition-objective>small{color:#c5c395;font-size:9px;letter-spacing:.14em}.expedition-objective h3{font-size:17px;color:#ece6d1;margin:10px 0}.expedition-objective p{color:#9eb8ae;font-size:12px;line-height:1.6;margin:8px 0}.expedition-objective button{width:100%;padding:10px;border:1px solid #91b99d66;border-radius:7px;background:#36584b;color:#f0edd6;font-size:12px;cursor:pointer}.expedition-objective button:disabled{background:#ffffff04;border-color:#ffffff12;color:#7d978d;cursor:default}
 @media(max-width:760px){.expedition-objective{top:158px;left:18px;width:min(235px,calc(100% - 150px));padding:12px}.expedition-objective h3{font-size:14px;margin:8px 0}.expedition-objective p{font-size:11px}.expedition-objective>small{font-size:8px}.expedition-objective button{font-size:11px;padding:8px}}
