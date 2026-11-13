@@ -1574,7 +1574,7 @@ function BirthScreen({ onStart, onBack }) {
                     type="button"
                     key={symbol}
                     style={periodicPosition(index + 1)}
-                    className={`${state} ${activeElement === symbol ? "selected" : ""}`}
+                    className={`${state} ${index >= 20 ? "advanced-element" : "core-element"} ${activeElement === symbol ? "selected" : ""}`}
                     onMouseEnter={() => setActiveElement(symbol)}
                     onFocus={() => setActiveElement(symbol)}
                     onClick={() => setActiveElement(symbol)}
@@ -1582,6 +1582,7 @@ function BirthScreen({ onStart, onBack }) {
                   >
                     <small>{index + 1}</small>
                     <b>{symbol}</b>
+                    <em>{elementGameInfo(symbol, index)[0]}</em>
                   </button>
                 );
               })}

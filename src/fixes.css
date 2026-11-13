@@ -40,6 +40,7 @@
 
 /* 정보 상태와 관계없이 모든 텍스트는 명확하게 유지 */
 .periodic-grid>button{color:#91a9c4!important;background:#0a1830!important;border-color:#294667!important}.periodic-grid>button small{color:#6f8ba8!important}.periodic-grid>button b{color:#b9cbe0;text-shadow:0 1px 2px #000}.periodic-grid>button.confirmed b,.periodic-grid>button.inferred b{color:#fff}.periodic-grid>button.confirmed small,.periodic-grid>button.inferred small{color:#d9faff!important}.series-label{color:#8ea8c1!important}.body-list button{color:#d4dfed!important}.body-list small{color:#8da3bd!important}.body-tabs button{color:#91a7c2!important}.birth-head p,.body-description,.environment-line{color:#b9c9da!important}.element-legend{color:#91a6bd}.element-effect>p{color:#c7d5e4!important}.element-identity small,.effect-bars small{color:#91abc3!important}.science-note{color:#7892ab!important}.resource-count{color:#91a6bd}.location-map small{color:#91a6bd!important}
+.periodic-grid>button>em{display:none}
 
 /* 태양계 장면과 동일한 3D 천체 미리보기 */
 .origin-orb{overflow:visible;background:none!important;box-shadow:none!important;animation:none!important;filter:drop-shadow(0 0 24px #2abde855)}.origin-orb canvas{width:100%!important;height:100%!important;border-radius:50%;background:radial-gradient(circle,#12315166,transparent 67%)}
@@ -220,4 +221,44 @@
   .periodic-grid>button{box-sizing:border-box;max-width:100%;box-shadow:none!important}
   .periodic-grid>button.confirmed{box-shadow:inset 0 0 0 1px rgba(122,234,255,.38)!important}
   .periodic-grid>button.inferred{box-shadow:inset 0 0 0 1px rgba(255,164,95,.35)!important}
+}
+@media(max-width:720px){
+  .birth-console{padding-bottom:0}
+  .birth-layout{flex:none;min-height:auto;overflow:visible}
+  .element-panel{overflow:visible}
+  .element-effect{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
+  .effect-bars{width:100%;max-width:100%;grid-template-columns:1fr;gap:6px;justify-self:stretch}
+  .effect-bars>span{grid-template-columns:30px minmax(0,1fr);gap:7px;min-width:0}
+  .effect-bars i{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;min-width:0}
+  .effect-bars i b{width:auto;min-width:0;max-width:none}
+  .element-effect>em{position:static;max-width:100%;margin-top:0;justify-self:start;white-space:normal;line-height:1.4}
+  .periodic-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none;width:100%;gap:8px;margin:10px 0 0}
+  .periodic-grid .series-label,.periodic-grid .advanced-element{display:none!important}
+  .periodic-grid>button.core-element{display:grid!important;aspect-ratio:auto;min-height:62px;padding:8px 4px!important;overflow:visible;contain:none;border-radius:9px!important}
+  .periodic-grid>button.core-element small{display:block;left:7px;top:6px;font-size:7px!important}
+  .periodic-grid>button.core-element b{font-size:17px;line-height:1.05}
+  .periodic-grid>button.core-element>em{display:block;max-width:100%;overflow:hidden;color:#8ea9c2;font-size:7px;font-style:normal;line-height:1;white-space:nowrap;text-overflow:ellipsis}
+  .periodic-grid>button.core-element.confirmed>em,.periodic-grid>button.core-element.inferred>em{color:#e8faff}
+}
+@media(max-width:720px){
+  .periodic-grid{grid-template-columns:repeat(18,minmax(0,1fr));grid-template-rows:repeat(4,auto);gap:0;width:100%;margin:12px 0 0}
+  .periodic-grid>button.core-element{display:grid!important;grid-template-rows:auto 1fr auto;aspect-ratio:auto;min-height:38px;padding:3px 1px 2px!important;border-radius:0!important;overflow:hidden;contain:paint;transform:none!important}
+  .periodic-grid>button.core-element small{display:block;position:static;font-size:clamp(3px,.9vw,5px)!important;line-height:1}
+  .periodic-grid>button.core-element b{font-size:clamp(7px,2.4vw,11px);line-height:1.05}
+  .periodic-grid>button.core-element>em{font-size:clamp(3px,1.05vw,5px);line-height:1;white-space:nowrap}
+}
+@media(max-width:600px){
+  .map-status{left:10px;right:10px;bottom:66px;width:auto;padding:10px;border:1px solid rgba(83,207,231,.28);border-radius:18px;background:linear-gradient(145deg,rgba(4,19,34,.95),rgba(3,12,25,.91));box-shadow:0 16px 45px rgba(0,0,0,.42);backdrop-filter:blur(16px)}
+  .map-status>small{display:block;overflow:hidden;color:#68ddec;font-size:6px;letter-spacing:.11em;line-height:1;white-space:nowrap;text-overflow:ellipsis}
+  .map-status>p{overflow:hidden;margin:5px 0 7px!important;color:#8faabb!important;font-size:7px!important;line-height:1.2!important;white-space:nowrap;text-overflow:ellipsis}
+  .map-resources{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .map-resources span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:6px 4px;border:1px solid rgba(85,180,211,.12);border-radius:9px;background:rgba(20,53,76,.55)}
+  .map-resources span small{font-size:6px}
+  .map-resources span b{font-size:10px}
+  .map-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:6px}
+  .map-tools button,.map-tools button:last-child{grid-column:auto;min-width:0;min-height:28px;padding:5px 2px;border-radius:8px;font-size:6px;line-height:1.15;white-space:normal}
+  .map-tools button:first-child{grid-column:span 2}
+  .map-tools kbd{display:none}
+  .map-tools button b{margin-left:2px;font-size:6px}
+  .map-status em{display:none}
 }
