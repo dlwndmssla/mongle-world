@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Analytics } from "@vercel/analytics/react";
 import "./styles.css";
 import "./fixes.css";
+import "./inventory.css";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -2953,6 +2954,12 @@ function ExplorationMap({ body, onOrbit }) {
   }, [dead, loadRatio]);
   useEffect(() => {
     const key = (e) => {
+      if (/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName)) return;
+      if (e.code === "KeyI") {
+        if (e.repeat) return;
+        setInventoryOpen((v) => !v);
+        return;
+      }
       if (e.key === "m" || e.key === "M") {
         setOverviewOpen((v) => !v);
         return;
@@ -3061,8 +3068,8 @@ function ExplorationMap({ body, onOrbit }) {
             {gatherMode === "auto" ? "자동 채집 중" : "자원 채집"}{" "}
             <kbd>{gatherMode === "auto" ? "AUTO" : "SPACE"}</kbd>
           </button>
-          <button onClick={() => setInventoryOpen(true)}>
-            인벤토리{" "}
+          <button className="inventory-control" onClick={() => setInventoryOpen(true)}>
+            가방 <kbd>I</kbd>{" "}
             <b>
               {inventoryLoad}/{INVENTORY_CAPACITY}
             </b>
@@ -3073,6 +3080,8 @@ function ExplorationMap({ body, onOrbit }) {
           <button onClick={useMedicine}>
             응급약 사용 <b>{inventory["응급약"]}</b>
           </button>
+        </div>
+        <div className="map-navigation">
           <button onClick={() => setOverviewOpen(true)}>
             세계 지도 <kbd>M</kbd>
           </button>
@@ -3136,19 +3145,24 @@ function ExplorationMap({ body, onOrbit }) {
         </i>
       </footer>
       {inventoryOpen && (
-        <div className="inventory-modal">
+        <div className="inventory-modal" role="dialog" aria-modal="true" aria-label="탐사 가방">
           <header>
             <div>
               <small>EXPEDITION LOADOUT</small>
-              <h2>인벤토리</h2>
+              <h2>탐사 가방</h2>
               <p>
                 {currentStorage
                   ? `보관소 연결됨 · ${storageLoad}/${currentStorage.level * 40}`
                   : "탐사 중 회수한 부품과 생존 물품"}
               </p>
             </div>
-            <button onClick={() => setInventoryOpen(false)}>×</button>
+            <button aria-label="가방 닫기" onClick={() => setInventoryOpen(false)}>×</button>
           </header>
+          <div className="carry-meter">
+            <span>휴대 중량 <b>{inventoryLoad} / {INVENTORY_CAPACITY}</b></span>
+            <meter min="0" max={INVENTORY_CAPACITY} value={inventoryLoad} />
+            <small>{loadRatio >= .9 ? "과적 주의 · 물품을 보관소로 옮기세요" : "부품을 모아 장비를 제작하세요"}</small>
+          </div>
           <div className="inventory-layout">
             <div className="inventory-slots">
               {Object.entries(inventory).map(([name, count], i) => (
@@ -3175,6 +3189,7 @@ function ExplorationMap({ body, onOrbit }) {
                     </small>
                   </span>
                   <strong>{String(count).padStart(2, "0")}</strong>
+                  {name === "응급약" && <button className="inventory-use" disabled={!count || health >= 100 || dead} onClick={useMedicine}>{health >= 100 ? "체력 가득" : "사용 · 체력 +45"}</button>}
                   {currentStorage && (
                     <div className="item-transfer">
                       <button onClick={() => transferStorage(name, "store")}>
@@ -3224,7 +3239,7 @@ function ExplorationMap({ body, onOrbit }) {
           </div>
           <footer>
             <span>
-              <kbd>SPACE</kbd> 현장 자원 채집
+              <kbd>I</kbd> 가방 열기 / 닫기 · <kbd>ESC</kbd> 닫기
             </span>
             <span>
               CARRY WEIGHT {inventoryLoad} / {INVENTORY_CAPACITY}
