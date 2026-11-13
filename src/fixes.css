@@ -262,3 +262,7 @@
   .map-tools button b{margin-left:2px;font-size:6px}
   .map-status em{display:none}
 }
+@media(max-width:720px){
+  .element-panel{padding-left:16px;padding-right:20px;box-sizing:border-box}
+  .periodic-grid{width:calc(100% - 12px);margin:12px 6px 0;box-sizing:border-box}
+}
