@@ -2067,7 +2067,7 @@ function ExplorationCanvas({
         cols = Math.ceil(width / tile) + 4,
         rows = Math.ceil(height / tile) + 4,
         startX = Math.floor(pos.x - cols / 2),
-        startY = Math.floor(pos.y - rows / 2);
+        startY = Math.floor(pos.y - rows * (width <= 760 ? 0.36 : 0.5));
       ctx.fillStyle = "#040b15";
       ctx.fillRect(0, 0, width, height);
       for (let sy = 0; sy < rows; sy++)
@@ -2158,7 +2158,7 @@ function ExplorationCanvas({
       cols = Math.ceil(rect.width / tile) + 4,
       rows = Math.ceil(rect.height / tile) + 4,
       startX = Math.floor(pos.x - cols / 2),
-      startY = Math.floor(pos.y - rows / 2);
+      startY = Math.floor(pos.y - rows * (rect.width <= 760 ? 0.36 : 0.5));
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
