@@ -11,6 +11,8 @@ import { Analytics } from "@vercel/analytics/react";
 import "./styles.css";
 import "./fixes.css";
 import "./inventory.css";
+import ResearchPanel, { TECHNOLOGIES } from "./ResearchPanel.jsx";
+import "./research.css";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -2242,6 +2244,12 @@ function mixHex(a, b, t) {
 }
 
 const BUILDING_RECIPES = {
+  제작소: {
+    structure: 4,
+    circuit: 2,
+    data: 0,
+    desc: "기초 공학 복원 후 응급약과 탐사 장비를 제작하는 시설",
+  },
   집: {
     structure: 4,
     circuit: 1,
@@ -2251,7 +2259,7 @@ const BUILDING_RECIPES = {
   도서관: {
     structure: 3,
     circuit: 2,
-    data: 2,
+    data: 1,
     desc: "손상된 설계 자료를 복구하고 현지 과학 연구를 진행하는 시설",
   },
   보관소: {
@@ -2276,10 +2284,12 @@ function ConstructionPanel({
   building,
   onBuild,
   onClose,
+  technologies = [],
 }) {
   const [selected, setSelected] = useState("집"),
     recipe = BUILDING_RECIPES[selected];
   const canBuild =
+    (selected !== "제작소" || technologies.includes("engineering")) &&
     tile?.type !== "sea" &&
     stock.structure >= recipe.structure &&
     stock.circuit >= recipe.circuit &&
@@ -2341,7 +2351,7 @@ function ConstructionPanel({
             disabled={!canBuild}
             onClick={() => onBuild(selected)}
           >
-            1셀에 {selected} 건설하기 <b>→</b>
+            {selected === "제작소" && !technologies.includes("engineering") ? "도서관에서 기초 공학 복원 필요" : `1셀에 ${selected} 건설하기`} <b>→</b>
           </button>
         </>
       ) : (
@@ -2607,6 +2617,10 @@ function ExplorationMap({ body, onOrbit }) {
     응급약: 1,
   });
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [technologies, setTechnologies] = useState([]);
+  const [scanner, setScanner] = useState(false);
+  const [researchNotice, setResearchNotice] = useState("");
   const [hunger, setHunger] = useState(0);
   const [health, setHealth] = useState(100);
   const [dead, setDead] = useState(false);
@@ -2652,21 +2666,22 @@ function ExplorationMap({ body, onOrbit }) {
   const revealAround = (x, y) =>
     setRevealed((prev) => {
       const n = new Set(prev);
-      for (let yy = y - 6; yy <= y + 6; yy++)
-        for (let xx = x - 6; xx <= x + 6; xx++)
+      const radius = scanner ? 9 : 6;
+      for (let yy = y - radius; yy <= y + radius; yy++)
+        for (let xx = x - radius; xx <= x + radius; xx++)
           if (
             xx >= 0 &&
             yy >= 0 &&
             xx < W &&
             yy < H &&
-            Math.hypot(xx - x, yy - y) <= 6.25
+            Math.hypot(xx - x, yy - y) <= radius + .25
           )
             n.add(`${xx},${yy}`);
       return n;
     });
   useEffect(() => revealAround(cx, cy), []);
   const move = (dx, dy) => {
-    if (dead) return;
+    if (dead || researchOpen || inventoryOpen || buildOpen || settingsOpen || overviewOpen) return;
     const nx = pos.x + dx,
       ny = pos.y + dy;
     if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
@@ -2734,10 +2749,15 @@ function ExplorationMap({ body, onOrbit }) {
     setMessage(
       medicine
         ? "버려진 생존 캡슐에서 응급약 1개를 발견했습니다."
-        : `${part} ${amount}개와 건축 자재를 회수했습니다.`,
+        : `${part} ${amount}개와 건축 자재를 회수했습니다.${part === "동력 코어" ? " 기록 매체 +1 · 도서관에서 해독할 수 있습니다." : ""}`,
     );
   };
   const constructBuilding = (type) => {
+    if (dead) return;
+    if (type === "제작소" && !technologies.includes("engineering")) {
+      setMessage("도서관에서 기초 공학을 먼저 복원하세요.");
+      return;
+    }
     const key = `${pos.x},${pos.y}`,
       tile = world[pos.y]?.[pos.x],
       existing = buildings.get(key);
@@ -2868,6 +2888,13 @@ function ExplorationMap({ body, onOrbit }) {
     }
   };
   const buildBoat = () => {
+    if (dead) return;
+    if (!technologies.includes("navigation") || currentBuilding?.type !== "제작소") {
+      setInventoryOpen(false);
+      setResearchOpen(true);
+      setResearchNotice("도서관에서 항해 기술을 복원한 뒤 제작소 칸에서 탐사선을 조립하세요.");
+      return;
+    }
     if (boat) {
       setMessage("탐사선이 이미 준비되어 있습니다.");
       return;
@@ -2887,8 +2914,29 @@ function ExplorationMap({ body, onOrbit }) {
       ),
     );
     setBoat(true);
+    setResearchNotice("소형 탐사선 완성 · 바다를 건너 다음 기록을 찾으세요.");
     setMessage("소형 탐사선 완성. 이제 바다 칸으로 이동할 수 있습니다.");
   };
+  const restoreTechnology = (id) => {
+    const index = TECHNOLOGIES.findIndex(t => t.id === id), tech = TECHNOLOGIES[index];
+    if (dead || !tech || currentBuilding?.type !== "도서관" || technologies.includes(id) || buildStock.data < tech.cost || (index > 0 && !technologies.includes(TECHNOLOGIES[index - 1].id))) return;
+    setBuildStock(v => ({...v, data:v.data-tech.cost}));
+    setTechnologies(v => [...v,id]);
+    setResearchNotice(`${tech.name} 복원 완료. 기억: ${tech.memory}`);
+    setMessage(`${tech.name} 복원 완료 · 새로운 제작법이 열렸습니다.`);
+  };
+  const craftEquipment = (id) => {
+    if (dead || currentBuilding?.type !== "제작소") return;
+    if (id === "boat") { buildBoat(); return; }
+    const isScanner = id === "scanner", need = isScanner ? {structure:3,circuit:2} : {structure:2,circuit:1};
+    if (!technologies.includes(isScanner ? "survey" : "engineering") || (isScanner && scanner) || buildStock.structure < need.structure || buildStock.circuit < need.circuit || (!isScanner && inventoryLoad + 1 > INVENTORY_CAPACITY)) return;
+    setBuildStock(v => ({...v,structure:v.structure-need.structure,circuit:v.circuit-need.circuit}));
+    if (isScanner) setScanner(true);
+    else setInventory(v => ({...v,응급약:v.응급약+1}));
+    const text = isScanner ? "탐사 스캐너 완성 · 탐사 시야가 9칸으로 확장됐습니다." : "응급약 1개를 제작해 가방에 넣었습니다.";
+    setResearchNotice(text); setMessage(text);
+  };
+  useEffect(() => { if (scanner) revealAround(pos.x,pos.y); }, [scanner]);
   const endDay = () => {
     if (dead) return;
     setDay((v) => v + 1);
@@ -2965,12 +3013,14 @@ function ExplorationMap({ body, onOrbit }) {
         return;
       }
       if (e.key === "Escape") {
+        setResearchOpen(false);
         setOverviewOpen(false);
         setSettingsOpen(false);
         setInventoryOpen(false);
         setBuildOpen(false);
         return;
       }
+      if (researchOpen) return;
       if (
         e.code === "Space" &&
         gatherMode === "manual" &&
@@ -3083,6 +3133,7 @@ function ExplorationMap({ body, onOrbit }) {
           </button>
         </div>
         <div className="map-navigation">
+          <button onClick={() => { setResearchNotice(""); setResearchOpen(true); }}><i aria-hidden="true">▥</i> 지식 · 제작</button>
           <button onClick={() => setOverviewOpen(true)}>
             <i aria-hidden="true">◎</i> 세계 지도 <kbd>M</kbd>
           </button>
@@ -3249,6 +3300,7 @@ function ExplorationMap({ body, onOrbit }) {
           </footer>
         </div>
       )}
+      {researchOpen && <ResearchPanel stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
       {buildOpen && (
         <ConstructionPanel
           position={pos}
@@ -3256,6 +3308,7 @@ function ExplorationMap({ body, onOrbit }) {
           stock={buildStock}
           building={buildings.get(`${pos.x},${pos.y}`)}
           onBuild={constructBuilding}
+          technologies={technologies}
           onClose={() => setBuildOpen(false)}
         />
       )}
