@@ -180,7 +180,7 @@
   .periodic-grid{grid-template-columns:repeat(18,34px);width:max-content;min-width:0;gap:4px}
   .periodic-grid>button{width:34px;height:38px}
   .element-effect{min-width:620px}
-  .birth-footer{position:sticky;z-index:25;left:auto;right:auto;bottom:0;min-height:64px;padding:10px 16px;background:rgba(3,9,26,.96);backdrop-filter:blur(12px)}
+  .birth-footer{position:static;z-index:auto;left:auto;right:auto;bottom:auto;min-height:64px;padding:10px 16px;background:#03091a;backdrop-filter:none}
   .launch-birth{width:100%;justify-content:space-between;margin:0!important}
   .map-game-head{align-items:flex-start}
   .map-head-stats{gap:6px}
