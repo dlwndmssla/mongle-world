@@ -2074,11 +2074,20 @@ function ExplorationCanvas({
           if(t.deposit){
             ctx.fillStyle={Al:'#b3c9d7',Mg:'#b2bd9d',Si:'#a6d9d6',C:'#6c7689',H:'#a7d5e4',O:'#b8d7d0'}[t.deposit]||'#bbb';
             ctx.globalAlpha=.32;ctx.fillRect(px,py,tile,tile);ctx.globalAlpha=1;
-            if((x+y)%3===0){ctx.font=`bold ${Math.max(8,tile*.7)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile/2,py+tile*.78);ctx.textAlign='start';}
+            if((x*5+y*3)%11===0){ctx.font=`bold ${Math.max(8,tile*.7)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile/2,py+tile*.78);ctx.textAlign='start';}
           }
           if(t.type === "mountain") {
-            ctx.fillStyle="rgba(25,24,30,.22)";ctx.beginPath();ctx.moveTo(px+tile*.15,py+tile*.85);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.9,py+tile*.85);ctx.fill();
-            ctx.strokeStyle="rgba(244,229,203,.32)";ctx.beginPath();ctx.moveTo(px+tile*.2,py+tile*.75);ctx.lineTo(px+tile*.5,py+tile*.12);ctx.lineTo(px+tile*.6,py+tile*.5);ctx.stroke();
+            const peak = (x * 37 + y * 19) % 7 === 0;
+            if (peak) {
+              ctx.fillStyle="rgba(25,24,30,.3)";ctx.beginPath();ctx.moveTo(px+tile*.1,py+tile*.88);ctx.lineTo(px+tile*.5,py+tile*.08);ctx.lineTo(px+tile*.94,py+tile*.88);ctx.fill();
+              ctx.strokeStyle="rgba(255,239,215,.42)";ctx.beginPath();ctx.moveTo(px+tile*.22,py+tile*.7);ctx.lineTo(px+tile*.5,py+tile*.08);ctx.lineTo(px+tile*.61,py+tile*.48);ctx.stroke();
+            } else {
+              ctx.strokeStyle="rgba(63,38,40,.16)";ctx.beginPath();ctx.moveTo(px,py+tile*.7);ctx.quadraticCurveTo(px+tile*.5,py+tile*.35,px+tile,py+tile*.62);ctx.stroke();
+            }
+          } else if (t.type === "land" && (x * 29 + y * 43) % 41 === 0) {
+            ctx.strokeStyle="rgba(48,27,33,.22)";
+            ctx.beginPath();ctx.ellipse(px+tile*.5,py+tile*.52,tile*.3,tile*.17,-.25,0,Math.PI*2);ctx.stroke();
+            ctx.beginPath();ctx.ellipse(px+tile*.48,py+tile*.5,tile*.16,tile*.08,-.25,0,Math.PI*2);ctx.stroke();
           }
           if (t.type === "sea") {
             ctx.strokeStyle = "rgba(190,238,246,.09)";
@@ -2088,16 +2097,8 @@ function ExplorationCanvas({
             ctx.stroke();
           }
           if (t.type === "resource") {
-            ctx.fillStyle = "#ffe58a";
-            ctx.beginPath();
-            ctx.arc(
-              px + tile / 2,
-              py + tile / 2,
-              Math.max(1.5, tile * 0.13),
-              0,
-              Math.PI * 2,
-            );
-            ctx.fill();
+            ctx.fillStyle = "#ffe58a";ctx.shadowColor="#ffd65d";ctx.shadowBlur=tile*.7;
+            ctx.beginPath();ctx.moveTo(px+tile*.5,py+tile*.16);ctx.lineTo(px+tile*.78,py+tile*.5);ctx.lineTo(px+tile*.5,py+tile*.84);ctx.lineTo(px+tile*.22,py+tile*.5);ctx.closePath();ctx.fill();ctx.shadowBlur=0;
           }
           if (showTrail && visited.has(`${x},${y}`)) {
             ctx.fillStyle = "rgba(223,250,255,.25)";
@@ -2178,14 +2179,19 @@ function ExplorationCanvas({
         return;
       const px = (x - startX - 1) * tile + tile / 2,
         py = (y - startY - 1) * tile + tile / 2;
-      ctx.fillStyle = "#ff6fae";
-      ctx.shadowColor = "#ff4f9b";
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(px, py - tile * 0.42, Math.max(2.5, tile * 0.2), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillRect(px - 0.8, py - tile * 0.25, 1.6, tile * 0.45);
+      const mission = /조사선|관측소|온실/.test(label),
+        home = /착륙 거점/.test(label),
+        color = mission ? "#ffd166" : home ? "#62e7f2" : "#ff6fae";
+      ctx.save();ctx.translate(px,py-tile*.18);ctx.fillStyle=color;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=12;
+      if (mission) {
+        ctx.lineWidth=Math.max(1,tile*.1);ctx.beginPath();ctx.arc(0,0,tile*.34,0,Math.PI*2);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(-tile*.28,0);ctx.lineTo(0,-tile*.28);ctx.lineTo(tile*.28,0);ctx.lineTo(0,tile*.28);ctx.closePath();ctx.fill();
+      } else if (home) {
+        ctx.beginPath();ctx.moveTo(-tile*.34,tile*.16);ctx.lineTo(0,-tile*.25);ctx.lineTo(tile*.34,tile*.16);ctx.lineTo(tile*.24,tile*.16);ctx.lineTo(tile*.24,tile*.42);ctx.lineTo(-tile*.24,tile*.42);ctx.lineTo(-tile*.24,tile*.16);ctx.closePath();ctx.fill();
+      } else {
+        ctx.beginPath();ctx.arc(0,-tile*.2,Math.max(2.5,tile*.2),0,Math.PI*2);ctx.fill();ctx.fillRect(-.8,0,1.6,tile*.45);
+      }
+      ctx.restore();
     });
   }, [buildings, pins, pos]);
   const click = (e) => {
