@@ -11,7 +11,7 @@ import { Analytics } from "@vercel/analytics/react";
 import "./styles.css";
 import "./fixes.css";
 import "./inventory.css";
-import ResearchPanel, { TECHNOLOGIES } from "./ResearchPanel.jsx";
+import { TECHNOLOGIES } from "./ResearchPanel.jsx";
 import "./research.css";
 import { createExpeditionSites, signalDirection } from "./expeditions.js";
 import { createTerrainSampler } from "./terrain.js";
@@ -20,11 +20,10 @@ import PlayerSprite from "./PlayerSprite.jsx";
 import { adjacentTiles, canTravel, boardingDestination } from "./boat.js";
 import { prerequisitesMet, memoryInsight, rocketPerformance, flightReadiness } from "./engineering.js";
 import { initialIndustry, advanceIndustry } from "./automation.js";
-import IndustryPanel from "./IndustryPanel.jsx";
 import { readExpedition,writeExpedition,saveKey } from "./saveGame.js";
 import { cameraView } from "./movement.js";
 import { createDepositSampler } from "./deposits.js";
-import { MINE_ELEMENTS, SHIP_RECIPES, miningChance, mineResult } from "./mining.js";
+import { MINE_ELEMENTS, SHIP_RECIPES } from "./mining.js";
 
 const RADIUS = 2.28;
 const WORLD_FEATURES = feature(
@@ -1390,7 +1389,7 @@ function GameIntroScreen({ onStart }) {
     <div className="intro-gate">
       <div className="intro-nebula" />
       <section className="intro-content">
-        <small>MEMORY LOG / SIGNAL LOST</small>
+        <small>EMERGENCY LOG / ELEMENTAL LOCKDOWN</small>
         <h1>
           낯선 별에서
           <br />
@@ -1398,12 +1397,12 @@ function GameIntroScreen({ onStart }) {
         </h1>
         <div className="intro-memory">
           <p>
-            낯선 태양계에 불시착했다. 함선도, 기록도, 가진 것도 모두
-            불타버렸다.
+            낯선 태양계에 불시착했다. 기억과 지식은 온전하지만 귀환선은
+            원소 유령들에게 빼앗겼다.
           </p>
           <p>
-            충격으로 과학 지식은 사라졌다. 하지만 언어와 고향의 별,
-            그곳에서 기다리는 가족만은 기억난다.
+            이 행성을 이루는 원소들이 의식을 가진 유령이 되어 곳곳을
+            떠돈다. 모든 종족을 봉인해야 귀환 항로를 되찾을 수 있다.
           </p>
           <strong>한 가지는 분명하다. 가족이 있는 곳으로 돌아가야 한다.</strong>
         </div>
@@ -1415,7 +1414,7 @@ function GameIntroScreen({ onStart }) {
             <b>01</b>살아남기
           </span>
           <span>
-            <b>02</b>지식 되찾기
+            <b>02</b>원소 유령 봉인
           </span>
           <span>
             <b>03</b>가족에게 돌아가기
@@ -1455,7 +1454,7 @@ function BirthScreen({ onStart, onBack }) {
             <small>MONGLE SURVIVOR / CRASH VECTOR</small>
             <h2>어디에 불시착할까요?</h2>
             <p>
-              문명도 구조 신호도 없는 세계에서 잃어버린 지식을 되찾고,
+              문명도 구조 신호도 없는 세계에서 원소 유령을 모두 봉인하고,
               가족이 기다리는 고향으로 돌아가세요.
             </p>
           </div>
@@ -2031,6 +2030,7 @@ function ExplorationCanvas({
   buildings,
   pins,
   showTrail,
+  defeatedGhosts,
 }) {
   const ref = useRef(),
     buildingRef = useRef(), playerRef = useRef(), previousPosition=useRef(pos),camera=useRef(null);
@@ -2069,10 +2069,12 @@ function ExplorationCanvas({
           if (t.type === "resource") color = terrainColor(t,palette);
           ctx.fillStyle = color;
           ctx.fillRect(px - 0.5, py - 0.5, tile + 1.2, tile + 1.2);
-          if(t.deposit){
-            ctx.fillStyle={Al:'#b3c9d7',Mg:'#b2bd9d',Si:'#a6d9d6',C:'#6c7689',H:'#a7d5e4',O:'#b8d7d0'}[t.deposit]||'#bbb';
-            ctx.globalAlpha=.32;ctx.fillRect(px,py,tile,tile);ctx.globalAlpha=1;
-            if((x*5+y*3)%11===0){ctx.font=`bold ${Math.max(8,tile*.7)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile/2,py+tile*.78);ctx.textAlign='start';}
+          if(t.deposit && !defeatedGhosts.has(t.deposit) && (x*5+y*3)%11===0){
+            const ghostColor={Al:'#8fe5ff',Mg:'#b8f4cf',Si:'#a6fff4',C:'#c7c4ff',H:'#d9f8ff',O:'#b8e9ff',N:'#d4c8ff',P:'#ffd1f3',K:'#ffe09a'}[t.deposit]||'#d8f7ff';
+            ctx.save();ctx.shadowColor=ghostColor;ctx.shadowBlur=tile*.9;ctx.fillStyle=ghostColor;ctx.globalAlpha=.9;
+            ctx.beginPath();ctx.arc(px+tile*.5,py+tile*.43,tile*.3,Math.PI,0);ctx.lineTo(px+tile*.8,py+tile*.76);ctx.quadraticCurveTo(px+tile*.68,py+tile*.6,px+tile*.58,py+tile*.76);ctx.quadraticCurveTo(px+tile*.48,py+tile*.6,px+tile*.38,py+tile*.76);ctx.quadraticCurveTo(px+tile*.28,py+tile*.6,px+tile*.2,py+tile*.76);ctx.closePath();ctx.fill();
+            ctx.shadowBlur=0;ctx.fillStyle='#102332';ctx.globalAlpha=1;ctx.beginPath();ctx.arc(px+tile*.4,py+tile*.43,Math.max(1,tile*.045),0,Math.PI*2);ctx.arc(px+tile*.6,py+tile*.43,Math.max(1,tile*.045),0,Math.PI*2);ctx.fill();
+            ctx.font=`bold ${Math.max(7,tile*.38)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile*.5,py+tile*.62);ctx.restore();ctx.textAlign='start';
           }
           if (t.type === "land" && (x * 29 + y * 43) % 41 === 0) {
             ctx.strokeStyle="rgba(48,27,33,.22)";
@@ -2120,7 +2122,7 @@ function ExplorationCanvas({
     ro.observe(canvas);
     draw();
     return () => ro.disconnect();
-  }, [world, pos, revealed, visited, palette, showTrail]);
+  }, [world, pos, revealed, visited, palette, showTrail, defeatedGhosts]);
   useEffect(() => {
     const canvas = buildingRef.current,
       rect = canvas.getBoundingClientRect(),
@@ -2217,7 +2219,6 @@ function terrainColor(t,palette){
 const BUILDING_RECIPES = {
   태양광발전기:{structure:3,circuit:2,data:0,desc:"전력 연구 후 낮 동안 5초마다 2 Wh를 생산하는 설비"},
   온실:{structure:4,circuit:2,data:0,desc:"수경재배 연구 후 물·양분·전력을 소비해 식량을 생산하는 시설"},
-  광산: {structure:3,circuit:1,data:0,desc:"행성의 확인·추정 원소를 회수하는 채굴·가스 추출 시설"},
   제작소: {
     structure: 4,
     circuit: 2,
@@ -2603,8 +2604,9 @@ function ExplorationMap({ body, onOrbit }) {
   const [miningOpen, setMiningOpen] = useState(false);
   const [miningCooldown, setMiningCooldown] = useState(0);
   const [miningNotice, setMiningNotice] = useState("");
+  const [defeatedGhosts, setDefeatedGhosts] = useState(saved?.defeatedGhosts||[]);
   const [shipModules, setShipModules] = useState(saved?.shipModules||[]);
-  const [technologies, setTechnologies] = useState(saved?.technologies||[]);
+  const [technologies, setTechnologies] = useState(TECHNOLOGIES.map(({id})=>id));
   const [industry,setIndustry]=useState(()=>saved?.industry||initialIndustry());
   const [timeScale,setTimeScale]=useState(1);
   const [knowledgeToast,setKnowledgeToast]=useState(null);
@@ -2647,9 +2649,13 @@ function ExplorationMap({ body, onOrbit }) {
   );
   const loadRatio = inventoryLoad / INVENTORY_CAPACITY;
   const saveEnabled=useRef(true),saveState=useRef(null);
-  saveState.current={pos,day,secondsLeft,food,inventory,shipModules,technologies,industry,insightHistory,staticTest,launched,rocketDesign,scanner,hunger,health,dead,boat,boatPosition,aboard,buildings,pins,buildStock,discoveries,blackboxDecoded,revealed,visited,overrides:world.overrides};
+  saveState.current={pos,day,secondsLeft,food,inventory,shipModules,technologies,industry,insightHistory,staticTest,launched,rocketDesign,scanner,hunger,health,dead,boat,boatPosition,aboard,buildings,pins,buildStock,discoveries,blackboxDecoded,defeatedGhosts,revealed,visited,overrides:world.overrides};
   useEffect(()=>{const save=()=>{if(saveEnabled.current&&saveState.current)writeExpedition(localStorage,body,saveState.current);};const timer=window.setInterval(save,5000);window.addEventListener('beforeunload',save);return()=>{window.clearInterval(timer);window.removeEventListener('beforeunload',save);save();};},[body]);
   const currentBuilding = buildings.get(`${pos.x},${pos.y}`);
+  const currentTile = world[pos.y]?.[pos.x];
+  const ghostRoster = MINE_ELEMENTS.filter(({symbol}) => BODY_START_DATA[body]?.confirmed?.includes(symbol) || BODY_START_DATA[body]?.inferred?.includes(symbol));
+  const currentGhost = currentTile?.deposit && !defeatedGhosts.includes(currentTile.deposit) ? currentTile.deposit : null;
+  const allGhostsDefeated = ghostRoster.length > 0 && ghostRoster.every(({symbol}) => defeatedGhosts.includes(symbol));
   const currentKey=`${pos.x},${pos.y}`;
   industryContext.current={buildings,technologies,profile:BODY_START_DATA[body],phase:600-secondsLeft};
   const showKnowledge=(tech,fromMemory=false)=>setKnowledgeToast({name:tech.name,formula:tech.formula,meaning:tech.meaning,desc:tech.desc,memory:tech.memory,fromMemory});
@@ -2723,7 +2729,7 @@ function ExplorationMap({ body, onOrbit }) {
     if(aboard) setBoatPosition({x:nx,y:ny});
     setVisited((v) => new Set([...v, `${nx},${ny}`]));
     revealAround(nx, ny);
-    if(tile.deposit){setMessage(`${MINE_ELEMENTS.find(e=>e.symbol===tile.deposit)?.name}(${tile.deposit}) 광맥 발견 · 이 지대 위에 광산을 지으면 해당 원소만 채굴합니다.`);return;}
+    if(tile.deposit && !defeatedGhosts.includes(tile.deposit)){setMessage(`${MINE_ELEMENTS.find(e=>e.symbol===tile.deposit)?.name}(${tile.deposit}) 유령 출현! ‘원소 유령’에서 전투를 시작하세요.`);return;}
     if (tile.type === "resource" && gatherMode === "auto") {
       gatherResource(nx, ny);
       return;
@@ -2977,13 +2983,14 @@ function ExplorationMap({ body, onOrbit }) {
     setMessage(`${tech.name} 복원 완료 · 새로운 제작법이 열렸습니다.`);
   };
   const extractElement = (symbol) => {
-    const profile = BODY_START_DATA[body];
-    if(dead || currentBuilding?.type !== "광산" || currentBuilding.mineElement!==symbol || miningCooldown || health<=1 || inventoryLoad>=INVENTORY_CAPACITY || !MINE_ELEMENTS.some(e=>e.symbol===symbol) || !miningChance(profile,symbol)) return;
+    if(dead || currentGhost!==symbol || defeatedGhosts.includes(symbol) || miningCooldown || health<=2 || !MINE_ELEMENTS.some(e=>e.symbol===symbol)) return;
     setMiningCooldown(2);
-    setHealth(v=>Math.max(1,v-1));
-    const amount=mineResult(profile,symbol);
-    if(amount) setInventory(v=>({...v,[symbol]:(v[symbol]||0)+amount}));
-    const text=amount ? `${symbol} 원소 1개 회수 성공 · 체력 −1` : `${symbol} 회수 실패 · 이번 시도에서는 원소를 찾지 못했습니다. 체력 −1`;
+    setHealth(v=>Math.max(1,v-2));
+    setInventory(v=>({...v,[symbol]:(v[symbol]||0)+1}));
+    setDefeatedGhosts(v=>v.includes(symbol)?v:[...v,symbol]);
+    world.overrides.set(`${pos.x},${pos.y}`,{...currentTile,deposit:null});setMapRevision(v=>v+1);
+    const remaining=Math.max(0,ghostRoster.length-defeatedGhosts.length-1);
+    const text=remaining===0 ? `${symbol} 원소 유령 봉인 완료 · 모든 유령을 물리쳤습니다! 귀환 항로가 열렸습니다.` : `${symbol} 원소 유령 봉인 완료 · 체력 −2 · 남은 유령 종족 ${remaining}`;
     setMiningNotice(text);setMessage(text);
   };
   const craftShipModule = (id) => {
@@ -3257,7 +3264,7 @@ function ExplorationMap({ body, onOrbit }) {
               world[pos.y]?.[pos.x]?.type === "resource" ? "collect-ready" : ""
             }
           >
-            {gatherMode === "auto" ? "자동 채집 중" : "자원 채집"}{" "}
+            {gatherMode === "auto" ? "자동 회수 중" : "잔해 회수"}{" "}
             <kbd>{gatherMode === "auto" ? "AUTO" : "SPACE"}</kbd>
           </button>
           <button className="inventory-control" onClick={() => setInventoryOpen(true)}>
@@ -3275,8 +3282,7 @@ function ExplorationMap({ body, onOrbit }) {
         </div>
         <div className="map-navigation">
           {boat && <button onClick={toggleBoarding}><i aria-hidden="true">♧</i>{aboard?'하선':'배에 승선'}</button>}
-          <button onClick={()=>{setMiningNotice("");setMiningOpen(true);}}><i aria-hidden="true">◇</i> 광산 · 원소</button>
-          <button onClick={() => { setResearchNotice(""); setResearchOpen(true); }}><i aria-hidden="true">▥</i> 지식 · 제작</button>
+          <button onClick={()=>{setMiningNotice("");setMiningOpen(true);}}><i aria-hidden="true">◉</i> 원소 유령 <b>{defeatedGhosts.length}/{ghostRoster.length}</b></button>
           <button onClick={() => setOverviewOpen(true)}>
             <i aria-hidden="true">◎</i> 세계 지도 <kbd>M</kbd>
           </button>
@@ -3292,11 +3298,11 @@ function ExplorationMap({ body, onOrbit }) {
             : "문명 신호 없음 · 첫 정착지를 건설하세요."}
         </em>
       </aside>
-      <section className="expedition-objective" aria-label="현재 원정 목표">
-        <small>FIELD EXPEDITION · {discoveries.length} / 3</small>
-        <h3>{expeditionTarget?.name || "주변 원정 완료"}</h3>
-        <p>{expeditionTarget ? `${signalDirection(pos,expeditionTarget)} · 직선 격자 거리 ${targetDistance}칸` : "회수한 기록으로 항해 기술을 복원하고 바다 너머로 떠나세요."}</p>
-        {discoveries.includes("wreck") && !blackboxDecoded ? <p>도서관을 짓거나 기존 도서관으로 돌아가 ‘기초 공학’을 해독하세요.</p> : activeSite ? <><p>{activeSite.id==='wreck'?'약한 구조 신호가 감지됩니다. 블랙박스를 찾아 돌아오세요.':activeSite.id==='observatory'?'블랙박스가 가리킨 관측소를 찾아 기록을 복구하세요.':'관측소가 포착한 마지막 생존 신호를 조사하세요.'}</p><button disabled={targetDistance>1||dead} onClick={investigateSite}>{targetDistance<=1?'현장 조사 · 기록 회수':'신호를 따라 이동하세요'}</button></> : null}
+      <section className="expedition-objective" aria-label="현재 토벌 목표">
+        <small>ELEMENTAL HUNT · {defeatedGhosts.length} / {ghostRoster.length}</small>
+        <h3>{allGhostsDefeated ? "귀환 항로 복구 완료" : "원소 유령을 추적하세요"}</h3>
+        <p>{allGhostsDefeated ? "모든 유령 종족을 봉인했습니다. 원소 유령 도감에서 귀환할 수 있습니다." : `빛나는 유령과 같은 칸에 도착해 전투하세요. 남은 종족 ${ghostRoster.length-defeatedGhosts.length}.`}</p>
+        <button onClick={()=>setMiningOpen(true)}>{allGhostsDefeated?'귀환 준비하기':'토벌 도감 열기'}</button>
       </section>
       <ExplorationCanvas
         key={mapRevision}
@@ -3311,6 +3317,7 @@ function ExplorationMap({ body, onOrbit }) {
         buildings={buildings}
         pins={expeditionPins}
         showTrail={showTrail}
+        defeatedGhosts={new Set(defeatedGhosts)}
       />
       <div className="map-legend">
         <span>
@@ -3323,7 +3330,7 @@ function ExplorationMap({ body, onOrbit }) {
         </span>
         <span>
           <i className="lg-resource" />
-          자원
+          잔해
         </span>
         <span>
           <i className="lg-unknown" />
@@ -3447,9 +3454,7 @@ function ExplorationMap({ body, onOrbit }) {
           </footer>
         </div>
       )}
-      {miningOpen && <MiningPanel technologies={technologies} body={body} profile={BODY_START_DATA[body]} building={currentBuilding} inventory={inventory} modules={shipModules} cooldown={miningCooldown} health={health} load={inventoryLoad} onMine={extractElement} onCraft={craftShipModule} onClose={()=>setMiningOpen(false)} notice={miningNotice} />}
-      {knowledgeToast&&<aside className="knowledge-toast" role="status"><small>{knowledgeToast.fromMemory?'과거의 기억에서 떠오른 공학':'새로운 지식을 알게 되었습니다'}</small><h3>{knowledgeToast.formula?`${knowledgeToast.formula}를 알게 되었습니다!`:knowledgeToast.name}</h3>{knowledgeToast.formula&&<code>{knowledgeToast.formula}</code>}<p>{knowledgeToast.meaning||knowledgeToast.memory}</p><p>{knowledgeToast.desc}</p><button onClick={()=>setKnowledgeToast(null)}>이해했습니다</button></aside>}
-      {researchOpen && <ResearchPanel insightHistory={insightHistory} operations={<IndustryPanel industry={industry} buildings={buildings} currentKey={currentKey} techs={technologies} body={body} gravity={BODY_START_DATA[body]?.gravity||3.71} radius={6371000*radiusRatio} day={day} design={rocketDesign} onDesign={(key,value)=>{setRocketDesign(v=>({...v,[key]:value}));setStaticTest(false);}} modules={shipModules} staticTest={staticTest} launched={launched} onCommand={industryCommand}/>} hasBlackbox={discoveries.includes("wreck")} stock={buildStock} techs={technologies} building={currentBuilding} buildings={buildings} inventory={inventory} load={inventoryLoad} scanner={scanner} boat={boat} onResearch={restoreTechnology} onCraft={craftEquipment} onClose={() => setResearchOpen(false)} notice={researchNotice} />}
+      {miningOpen && <MiningPanel body={body} roster={ghostRoster} currentGhost={currentGhost} defeated={defeatedGhosts} allDefeated={allGhostsDefeated} cooldown={miningCooldown} health={health} onMine={extractElement} onReturn={onOrbit} onClose={()=>setMiningOpen(false)} notice={miningNotice} />}
       {buildOpen && (
         <ConstructionPanel
           position={pos}
