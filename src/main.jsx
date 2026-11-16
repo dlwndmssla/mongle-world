@@ -3176,10 +3176,16 @@ function ExplorationMap({ body, onOrbit }) {
         gatherResource();
         return;
       }
-      if (e.key === "ArrowUp" || e.key === "w") move(0, -1);
-      if (e.key === "ArrowDown" || e.key === "s") move(0, 1);
-      if (e.key === "ArrowLeft" || e.key === "a") move(-1, 0);
-      if (e.key === "ArrowRight" || e.key === "d") move(1, 0);
+      const directions = {
+        ArrowUp: [0, -1], KeyW: [0, -1],
+        ArrowDown: [0, 1], KeyS: [0, 1],
+        ArrowLeft: [-1, 0], KeyA: [-1, 0],
+        ArrowRight: [1, 0], KeyD: [1, 0],
+      };
+      if (directions[e.code]) {
+        e.preventDefault();
+        move(...directions[e.code]);
+      }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
