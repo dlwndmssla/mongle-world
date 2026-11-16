@@ -2587,7 +2587,6 @@ function ExplorationMap({ body, onOrbit }) {
   const [discoveries, setDiscoveries] = useState(saved?.discoveries||[]);
   const [blackboxDecoded, setBlackboxDecoded] = useState(saved?.blackboxDecoded||false);
   const [pos, setPos] = useState(saved?.pos||{ x: cx, y: cy });
-  const nextMoveAt=useRef(0);
   const [revealed, setRevealed] = useState(() => new Set(saved?.revealed||[]));
   const [visited, setVisited] = useState(() => new Set(saved?.visited||[`${cx},${cy}`]));
   const [day, setDay] = useState(saved?.day||1);
@@ -2710,7 +2709,6 @@ function ExplorationMap({ body, onOrbit }) {
   useEffect(() => revealAround(cx, cy), []);
   const move = (dx, dy) => {
     if (dead || miningOpen || researchOpen || inventoryOpen || buildOpen || settingsOpen || overviewOpen) return;
-    const now=performance.now();if(now<nextMoveAt.current)return;
     const nx = pos.x + dx,
       ny = pos.y + dy;
     if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
@@ -2722,7 +2720,6 @@ function ExplorationMap({ body, onOrbit }) {
       return;
     }
     setPos({ x: nx, y: ny });
-    nextMoveAt.current=now+60;
     if(aboard) setBoatPosition({x:nx,y:ny});
     setVisited((v) => new Set([...v, `${nx},${ny}`]));
     revealAround(nx, ny);
@@ -3152,15 +3149,22 @@ function ExplorationMap({ body, onOrbit }) {
       }
       if (researchOpen || miningOpen) return;
       if (
-        e.code === "Space" &&
-        gatherMode === "manual" &&
-        !inventoryOpen &&
-        !buildOpen &&
-        !overviewOpen &&
-        !settingsOpen
+        e.code === "Space" ||
+        e.key === " " ||
+        e.key === "Space" ||
+        e.key === "Spacebar"
       ) {
+        // Space must never scroll the expedition screen. In manual mode it is
+        // reserved exclusively for collecting the resource under the player.
         e.preventDefault();
-        gatherResource();
+        if (
+          gatherMode === "manual" &&
+          !inventoryOpen &&
+          !buildOpen &&
+          !overviewOpen &&
+          !settingsOpen
+        )
+          gatherResource();
         return;
       }
       const directions = {
@@ -3174,8 +3178,8 @@ function ExplorationMap({ body, onOrbit }) {
         move(...directions[e.code]);
       }
     };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    window.addEventListener("keydown", key, { capture: true });
+    return () => window.removeEventListener("keydown", key, { capture: true });
   });
   const discovered = (revealed.size / (W * H)) * 100,
     names = WORLD_REGION_NAMES[body] || WORLD_REGION_NAMES.지구,
