@@ -22,7 +22,7 @@ import { prerequisitesMet, memoryInsight, rocketPerformance, flightReadiness } f
 import { initialIndustry, advanceIndustry } from "./automation.js";
 import IndustryPanel from "./IndustryPanel.jsx";
 import { readExpedition,writeExpedition,saveKey } from "./saveGame.js";
-import { movementDelay, cameraView } from "./movement.js";
+import { cameraView } from "./movement.js";
 import { createDepositSampler } from "./deposits.js";
 import { MINE_ELEMENTS, SHIP_RECIPES, miningChance, mineResult } from "./mining.js";
 
@@ -2066,8 +2066,6 @@ function ExplorationCanvas({
                 ? palette[1]
                 : mixHex(palette[1], "#8ad5db", 0.18);
           if (t.type === "forest") color = mixHex(palette[0], "#174c45", 0.45);
-          if (t.type === "mountain")
-            color = mixHex(palette[0], "#d9d3c0", 0.28);
           if (t.type === "resource") color = terrainColor(t,palette);
           ctx.fillStyle = color;
           ctx.fillRect(px - 0.5, py - 0.5, tile + 1.2, tile + 1.2);
@@ -2076,15 +2074,7 @@ function ExplorationCanvas({
             ctx.globalAlpha=.32;ctx.fillRect(px,py,tile,tile);ctx.globalAlpha=1;
             if((x*5+y*3)%11===0){ctx.font=`bold ${Math.max(8,tile*.7)}px monospace`;ctx.textAlign='center';ctx.fillText(t.deposit,px+tile/2,py+tile*.78);ctx.textAlign='start';}
           }
-          if(t.type === "mountain") {
-            const peak = (x * 37 + y * 19) % 7 === 0;
-            if (peak) {
-              ctx.fillStyle="rgba(25,24,30,.3)";ctx.beginPath();ctx.moveTo(px+tile*.1,py+tile*.88);ctx.lineTo(px+tile*.5,py+tile*.08);ctx.lineTo(px+tile*.94,py+tile*.88);ctx.fill();
-              ctx.strokeStyle="rgba(255,239,215,.42)";ctx.beginPath();ctx.moveTo(px+tile*.22,py+tile*.7);ctx.lineTo(px+tile*.5,py+tile*.08);ctx.lineTo(px+tile*.61,py+tile*.48);ctx.stroke();
-            } else {
-              ctx.strokeStyle="rgba(63,38,40,.16)";ctx.beginPath();ctx.moveTo(px,py+tile*.7);ctx.quadraticCurveTo(px+tile*.5,py+tile*.35,px+tile,py+tile*.62);ctx.stroke();
-            }
-          } else if (t.type === "land" && (x * 29 + y * 43) % 41 === 0) {
+          if (t.type === "land" && (x * 29 + y * 43) % 41 === 0) {
             ctx.strokeStyle="rgba(48,27,33,.22)";
             ctx.beginPath();ctx.ellipse(px+tile*.5,py+tile*.52,tile*.3,tile*.17,-.25,0,Math.PI*2);ctx.stroke();
             ctx.beginPath();ctx.ellipse(px+tile*.48,py+tile*.5,tile*.16,tile*.08,-.25,0,Math.PI*2);ctx.stroke();
@@ -2109,7 +2099,7 @@ function ExplorationCanvas({
         }
       const playerX = (pos.x - startX - 1) * tile + tile / 2,
         playerY = (pos.y - startY - 1) * tile + tile / 2;
-      if(playerRef.current){playerRef.current.style.transitionDuration=`${movementDelay(world[pos.y]?.[pos.x],aboard)*.8}ms`;playerRef.current.style.left=`${playerX}px`;playerRef.current.style.top=`${playerY}px`;}
+      if(playerRef.current){playerRef.current.style.left=`${playerX}px`;playerRef.current.style.top=`${playerY}px`;}
       const glow = ctx.createRadialGradient(
         playerX,
         playerY,
@@ -2124,13 +2114,7 @@ function ExplorationCanvas({
       ctx.beginPath();
       ctx.arc(playerX, playerY, tile * 2.4, 0, Math.PI * 2);
       ctx.fill();
-      const dx=pos.x-previousPosition.current.x,dy=pos.y-previousPosition.current.y;
       previousPosition.current=pos;
-      if((dx||dy)&&oldCamera&&Math.abs(dx)+Math.abs(dy)===1&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-        const duration=movementDelay(world[pos.y]?.[pos.x],aboard)*.8;
-        const cx=(startX-oldCamera.startX)*tile,cy=(startY-oldCamera.startY)*tile;
-        if(cx||cy)for(const layer of [canvas,buildingRef.current])layer?.animate([{transform:`translate(${cx}px,${cy}px)`},{transform:'translate(0,0)'}],{duration,easing:'linear'});
-      }
     };
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
@@ -2227,8 +2211,7 @@ function terrainColor(t,palette){
   if(t.type==='sea')return mixHex(palette[1],t.depth==='coast'?'#6a9b9f':'#071725',t.depth==='coast'?.35:.25);
   if(t.beach)return mixHex(palette[0],'#d7c59c',.55);
   if(t.type==='forest')return mixHex(palette[0],'#244b43',.55);
-  const base=t.type==='mountain'?mixHex(palette[0],'#ddd1bd',.35):palette[0];
-  return mixHex(base,(t.elevation||.5)>.64?'#e3c6a0':'#242d38',.08+Math.abs((t.shade||.5)-.5)*.18);
+  return mixHex(palette[0],(t.elevation||.5)>.64?'#e3c6a0':'#242d38',.08+Math.abs((t.shade||.5)-.5)*.18);
 }
 
 const BUILDING_RECIPES = {
@@ -2739,7 +2722,7 @@ function ExplorationMap({ body, onOrbit }) {
       return;
     }
     setPos({ x: nx, y: ny });
-    nextMoveAt.current=now+movementDelay(tile,aboard);
+    nextMoveAt.current=now+60;
     if(aboard) setBoatPosition({x:nx,y:ny});
     setVisited((v) => new Set([...v, `${nx},${ny}`]));
     revealAround(nx, ny);
@@ -2758,8 +2741,6 @@ function ExplorationMap({ body, onOrbit }) {
       setMessage(
         "자원 지대에 도착했습니다. ‘자원 채집’을 눌러 부품을 회수하세요.",
       );
-    else if (tile.type === "mountain")
-      setMessage("높은 지형에 올라 더 넓은 지역을 확인했습니다.");
     else setMessage("새로운 육지를 지도에 기록했습니다.");
   };
   const gatherResource = (x = pos.x, y = pos.y) => {
@@ -3331,10 +3312,6 @@ function ExplorationMap({ body, onOrbit }) {
         <span>
           <i className="lg-land" />
           육지
-        </span>
-        <span>
-          <i className="lg-mountain" />
-          산악
         </span>
         <span>
           <i className="lg-sea" />

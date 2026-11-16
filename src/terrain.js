@@ -19,10 +19,9 @@ export function createTerrainSampler(body,w,h){
     const grain=noise(x/9+70,y/9),detail=noise(x/28,y/28+72);
     if(elevation<coast)return {type:'sea',depth:elevation<coast-.065?'deep':'coast',elevation,shade:grain};
     const ridge=1-Math.abs(noise(wx*11+77,wy*11+20)*2-1);
-    const mountain=elevation>.65&&ridge>.79;
     const moisture=noise(wx*9+200,wy*9+55);
     const barren=body!=='지구'&&body!=='타이탄';
     const resource=hash(x,y)>.982&&detail>.42;
-    return {type:resource?'resource':mountain?'mountain':!barren&&moisture>.57?'forest':'land',depth:'land',elevation,shade:grain,beach:elevation<coast+.019};
+    return {type:resource?'resource':!barren&&moisture>.57?'forest':'land',depth:'land',elevation,shade:grain,beach:elevation<coast+.019};
   };
 }
