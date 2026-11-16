@@ -1422,7 +1422,7 @@ function GameIntroScreen({ onStart }) {
         </div>
       </section>
       <footer className="intro-footer">
-        <span>LAST MEMORY / HOME BEYOND THIS SYSTEM</span>
+        <span>HOME SIGNAL / BEYOND THIS SYSTEM</span>
         <span>NO RESCUE SIGNAL · NO CIVILIZATION</span>
       </footer>
     </div>
